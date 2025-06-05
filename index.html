@@ -8,144 +8,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css"> {/* Your SnapTask CSS */}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #8B5CF6; /* Purple accent */
-            --primary-hover-color: #7C3AED;
-            --secondary-bg-color: #333333; 
-            --secondary-hover-bg-color: #444444;
-            --text-primary-dark: #EAEAEA; 
-            --text-secondary-dark: #A0A0A0; 
-            --bg-dark: #000000; 
-            --card-bg-dark: #1A1A1A; 
-            --border-dark: #2C2C2C; 
-            --text-light: #FFFFFF; 
-            --green-accent: #10B981;
-            --red-accent: #EF4444;
-            --gray-accent: #757575;
-        }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-primary-dark);
-            height: 100%;
-            overflow-x: hidden;
-        }
-
-        body { 
-            display: flex;
-            flex-direction: column; 
-            min-height: 100vh; 
-        }
-
-        .header {
-            position: fixed; 
-            top: 0;
-            left: 0;
-            width: 100%; 
-            box-sizing: border-box; 
-            background-color: rgba(10, 10, 10, 0.85); 
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            padding: 0 20px; 
-            height: 60px;
-            display: flex;
-            justify-content: space-between; 
-            align-items: center;
-            z-index: 1000;
-            border-bottom: 1px solid var(--border-dark);
-            visibility: hidden; 
-        }
-
-        .header-left { flex-shrink: 0; display: flex; align-items: center; }
-        .header-left .logo { font-size: 22px; font-weight: 800; color: var(--text-primary-dark); text-decoration: none; white-space: nowrap; }
-        .header-left .logo .logo-task { color: var(--primary-color); } 
-
-        .header-center { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; margin: 0 15px; overflow: hidden; }
-        .header-center nav ul { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 10px; }
-        .header-center nav a { text-decoration: none; color: var(--text-secondary-dark); font-weight: 500; font-size: 13px; padding: 6px 8px; border-radius: 5px; white-space: nowrap; transition: color 0.2s ease, background-color 0.2s ease; }
-        .header-center nav a:hover { 
-            color: var(--primary-color); 
-            background-color: rgba(139, 92, 246, 0.1); 
-        }
-        .header-center nav a.active { 
-            color: var(--primary-color); /* Active link text purple */
-            font-weight: 700; /* Make active link bolder */
-            background-color: transparent; /* Removed background box */
-        }
-
-        .header-right { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-        .btn { padding: 8px 15px; border: none; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; transition: all 0.2s ease-in-out; box-shadow: 0 1px 2px rgba(0,0,0,0.3); white-space: nowrap; display: inline-flex; align-items: center; }
-        .btn i.fas { font-size: 11px; margin-right: 5px; }
-        .btn-primary { background-color: var(--primary-color); color: var(--text-light); }
-        .btn-primary:hover { background-color: var(--primary-hover-color); transform: translateY(-1px); box-shadow: 0 2px 5px rgba(139, 92, 246, 0.3); }
-        .btn-secondary { background-color: var(--secondary-bg-color); color: var(--text-primary-dark); }
-        .btn-secondary:hover { background-color: var(--secondary-hover-bg-color); transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
-
-        .main-container {
-            padding-top: 60px; /* Account for fixed header height */
-            flex-grow: 1; /* Allows main-container to take up remaining vertical space */
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* Vertically centers its children */
-            align-items: center; /* Horizontally centers its children */
-            width: 100%; 
-            max-width: 1000px; 
-            margin-left: auto; 
-            margin-right: auto; 
-            padding-bottom: 40px; /* Some bottom padding */
-            box-sizing: border-box;
-        }
-        .welcome-banner { 
-            text-align: center; 
-            padding: 20px 0; 
-            visibility: hidden; 
-            width: 100%; 
-            max-width: 800px; 
-            margin-bottom: 30px; 
-        }
-        .welcome-banner .welcome-heading { font-size: 42px; font-weight: 800; color: var(--text-primary-dark); margin: 0 0 8px 0; letter-spacing: -0.025em; }
-        .welcome-banner .welcome-heading .user-name-highlight { color: var(--primary-color); } /* Style for user name */
-        .welcome-banner .welcome-subheading { font-size: 42px; font-weight: 700; color: var(--text-secondary-dark); margin: 0; letter-spacing: -0.025em; }
-        
-        .task-progress-widget { 
-            background-color: var(--card-bg-dark); 
-            padding: 30px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 35px rgba(0,0,0,0.4); 
-            border: 1px solid var(--border-dark); 
-            visibility: hidden; 
-            width: 100%; 
-            max-width: 800px; 
-            margin-bottom: 30px; /* Space before the new button */
-        }
-        .task-progress-widget h2 { font-size: 20px; font-weight: 600; color: var(--text-primary-dark); margin: 0 0 25px 0; text-align: center; }
-        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; }
-        .stat-item { background-color: #252525; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid var(--border-dark); }
-        .stat-item .stat-label { font-size: 14px; color: var(--text-secondary-dark); margin-bottom: 8px; font-weight: 500; }
-        .stat-item .stat-value { font-size: 32px; font-weight: 700; color: var(--text-primary-dark); margin-bottom: 15px; }
-        .progress-bar-container { width: 100%; background-color: #333; border-radius: 8px; height: 12px; overflow: hidden; }
-        .progress-bar { height: 100%; border-radius: 8px; transition: width 0.5s ease-in-out; }
-        .progress-bar.completed { background-color: var(--green-accent); }
-        .progress-bar.not-completed { background-color: var(--red-accent); }
-        .progress-bar.total { background-color: var(--primary-color); } 
-
-        .add-task-main-container { 
-            text-align: center; 
-            width: 100%;
-            max-width: 800px; 
-            visibility: hidden; 
-            margin-top: 0; 
-        }
-        
-    </style>
 </head>
 <body>
+    <canvas id="dynamicNightSkyCanvas"></canvas> {/* Canvas for animated background */}
+
     <header class="header">
         <div class="header-left">
             <a href="#" class="logo">Snap<span class="logo-task">Task</span></a>
@@ -198,23 +66,23 @@
             </div>
         </section>
 
-        <div class="add-task-main-container"> 
+        <div class="add-task-main-container">
             <button class="btn btn-primary" id="btn-add-task-main"><i class="fas fa-plus"></i>Add Task</button>
         </div>
-        
     </main>
 
     <script>
+        // SnapTask Dashboard JavaScript
         function updateDashboardUI(data) {
             const userNamePlaceholder = document.getElementById('user-name-placeholder');
             if (data && data.name) {
                 userNamePlaceholder.textContent = data.name;
-                 userNamePlaceholder.classList.add('user-name-highlight'); 
+                userNamePlaceholder.classList.add('user-name-highlight');
             } else {
                 userNamePlaceholder.textContent = "Guest";
                 userNamePlaceholder.classList.remove('user-name-highlight');
             }
-            
+
             const totalTasks = data && data.totalTasks !== undefined ? data.totalTasks : 0;
             const completedTasks = data && data.completedTasks !== undefined ? data.completedTasks : 0;
             const notCompletedTasks = totalTasks - completedTasks;
@@ -236,7 +104,8 @@
                 return;
             }
             try {
-                const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', { 
+                // Replace with your actual API endpoint if needed
+                const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' }
                 });
@@ -247,7 +116,8 @@
                     console.error("Unauthorized. Token might be invalid or expired.");
                     localStorage.removeItem('snapTaskAppToken');
                     updateDashboardUI({ name: "Guest", totalTasks: 0, completedTasks: 0 });
-                    alert("Session expired or invalid. Please log in again.");
+                    // Consider a less disruptive notification than alert, e.g., a small banner
+                    // alert("Session expired or invalid. Please log in again.");
                 } else {
                     console.error("Failed to fetch dashboard data:", response.status, await response.text());
                     updateDashboardUI({ name: "User (Error)", totalTasks: 0, completedTasks: 0 });
@@ -257,25 +127,27 @@
                 updateDashboardUI({ name: "User (Offline)", totalTasks: 0, completedTasks: 0 });
             }
         }
-        
+
         document.getElementById('btn-logout').addEventListener('click', () => {
             localStorage.removeItem('snapTaskAppToken');
-            localStorage.removeItem('snapTaskUserInfo'); 
-            alert('Logged out! Redirecting to login page.');
-            window.location.href = 'login.html'; 
+            localStorage.removeItem('snapTaskUserInfo'); // If you store other user info
+            alert('Logged out! Redirecting to login page.'); // Consider redirecting after user clicks OK
+            window.location.href = 'login.html'; // Ensure you have a login.html page
         });
 
         document.getElementById('btn-add-task-header').addEventListener('click', () => {
             alert('Header: Add new task functionality to be implemented!');
+            // Future: Show a modal or navigate to an "add task" page
         });
-        
+
         document.getElementById('btn-add-task-main').addEventListener('click', () => {
             alert('Main Area: Add new task functionality to be implemented!');
+            // Future: Show a modal or navigate to an "add task" page
         });
 
-
         window.onload = function () {
-            fetchDashboardData(); 
+            fetchDashboardData(); // Fetch data when the page loads
+            // GSAP Animations for content
             const tl = gsap.timeline({ defaults: { duration: 0.6, ease: "Power2.easeOut" } });
             tl.from(".header", { autoAlpha: 0, y: -30, delay: 0.2 })
               .from(".welcome-banner", { autoAlpha: 0, y: 25, scale: 0.97 }, "-=0.4")
@@ -283,5 +155,216 @@
               .from(".add-task-main-container", { autoAlpha: 0, y: 25, scale: 0.97 }, "-=0.4");
         };
     </script>
+
+    <script>
+        // JavaScript for Night Sky Animated Background
+        document.addEventListener('DOMContentLoaded', () => {
+            const dynamicBgCanvas = document.getElementById('dynamicNightSkyCanvas');
+            if (dynamicBgCanvas) {
+                const dynamicBgCtx = dynamicBgCanvas.getContext('2d');
+                if (!dynamicBgCtx) {
+                    console.error("[CANVAS DEBUG] Failed to get 2D context for canvas.");
+                    return;
+                }
+                let dynamicBgAnimationFrameId;
+
+                function canvasRandom(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                function setupDynamicBackgroundCanvasDimensions() {
+                    dynamicBgCanvas.width = window.innerWidth;
+                    dynamicBgCanvas.height = window.innerHeight;
+                }
+
+                let stars = [];
+                let comets = [];
+                const MAX_STARS_BG = 150;
+                const COMET_INTERVAL_BG = 2500; //ms
+                let lastCometTimeBG = 0;
+                let blinkingStarIndex = -1;
+                let blinkStartTime = 0;
+                const BLINK_DURATION = 1200; //ms
+                const INTER_BLINK_DELAY = 150; //ms
+                const STAR_DIM_OPACITY_FACTOR = 0.3;
+
+                class StarBG {
+                    constructor() {
+                        this.x = canvasRandom(0, dynamicBgCanvas.width);
+                        this.y = canvasRandom(0, dynamicBgCanvas.height * 0.85);
+                        this.radius = canvasRandom(0.6, 2.0);
+                        this.baseOpacity = canvasRandom(0.7, 1.0);
+                        this.currentOpacity = this.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                    }
+                    draw() {
+                        let starColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-star-color').trim();
+                        if (!starColorCSS || starColorCSS === "''" || starColorCSS === "none") starColorCSS = 'rgba(255, 255, 224, 0.9)';
+
+                        if ((starColorCSS.startsWith("'") && starColorCSS.endsWith("'")) || (starColorCSS.startsWith('"') && starColorCSS.endsWith('"'))) {
+                            starColorCSS = starColorCSS.substring(1, starColorCSS.length - 1);
+                        }
+
+                        dynamicBgCtx.beginPath();
+                        dynamicBgCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        const finalOpacity = Math.max(0, Math.min(1, this.currentOpacity));
+                        let finalColor = starColorCSS;
+
+                        if (starColorCSS.startsWith('rgba')) {
+                            finalColor = starColorCSS.replace(/,\s*[\d.]+\)$/, `, ${finalOpacity})`);
+                        } else if (starColorCSS.startsWith('rgb')) {
+                            finalColor = starColorCSS.replace('rgb', 'rgba').replace(')', `, ${finalOpacity})`);
+                        } else if (starColorCSS.startsWith('#')) {
+                            let r = 0, g = 0, b = 0;
+                            if (finalColor.length === 4) {
+                                r = parseInt(finalColor[1] + finalColor[1], 16); g = parseInt(finalColor[2] + finalColor[2], 16); b = parseInt(finalColor[3] + finalColor[3], 16);
+                            } else if (finalColor.length === 7) {
+                                r = parseInt(finalColor.substring(1, 3), 16); g = parseInt(finalColor.substring(3, 5), 16); b = parseInt(finalColor.substring(5, 7), 16);
+                            }
+                            finalColor = `rgba(${r},${g},${b},${finalOpacity})`;
+                        }
+                        dynamicBgCtx.fillStyle = finalColor;
+                        dynamicBgCtx.fill();
+                    }
+                }
+
+                class CometBG {
+                    constructor() {
+                        this.x = canvasRandom(0, dynamicBgCanvas.width);
+                        this.y = canvasRandom(-30, -5);
+                        this.length = canvasRandom(80, 150);
+                        this.speed = canvasRandom(1.5, 4);
+                        this.angle = canvasRandom(Math.PI * 0.3, Math.PI * 0.7);
+                        this.dx = Math.cos(this.angle) * this.speed;
+                        this.dy = Math.sin(this.angle) * this.speed;
+                        this.brightness = canvasRandom(0.7, 1);
+                    }
+                    update() { this.x += this.dx; this.y += this.dy; }
+                    draw() {
+                        const headColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-comet-head-color').trim();
+                        const tailMidColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-comet-tail-mid-color').trim();
+
+                        const headColor = headColorCSS && headColorCSS !== "none" && headColorCSS !== "''" ? headColorCSS.replace(/[\d.]+\)$/, `${this.brightness})`) : `rgba(255, 255, 224, ${this.brightness})`;
+                        const tailMidColor = tailMidColorCSS && tailMidColorCSS !== "none" && tailMidColorCSS !== "''" ? tailMidColorCSS.replace(/[\d.]+\)$/, `${this.brightness * 0.5})`) : `rgba(255, 255, 224, ${this.brightness * 0.5})`;
+                        const tailEndColor = `rgba(255, 255, 224, 0)`;
+
+                        dynamicBgCtx.beginPath();
+                        const tailX = this.x - this.dx * (this.length / this.speed);
+                        const tailY = this.y - this.dy * (this.length / this.speed);
+                        const gradient = dynamicBgCtx.createLinearGradient(this.x, this.y, tailX, tailY);
+                        gradient.addColorStop(0, headColor);
+                        gradient.addColorStop(0.3, tailMidColor);
+                        gradient.addColorStop(1, tailEndColor);
+                        dynamicBgCtx.strokeStyle = gradient;
+                        dynamicBgCtx.lineWidth = canvasRandom(0.5, 2.5);
+                        dynamicBgCtx.moveTo(this.x, this.y);
+                        dynamicBgCtx.lineTo(tailX, tailY);
+                        dynamicBgCtx.stroke();
+                    }
+                    isOffscreen() { return this.y > dynamicBgCanvas.height + this.length || this.x < -this.length || this.x > dynamicBgCanvas.width + this.length; }
+                }
+
+                function initDarkModeCanvas() {
+                    stars = [];
+                    for (let i = 0; i < MAX_STARS_BG; i++) { stars.push(new StarBG()); }
+                    stars.forEach(star => { if (star) star.currentOpacity = star.baseOpacity * STAR_DIM_OPACITY_FACTOR; });
+                    comets = [];
+                    lastCometTimeBG = performance.now();
+                    blinkingStarIndex = -1;
+                    blinkStartTime = performance.now();
+                }
+
+                function updateStarBlinkingLogic(timestamp) {
+                    if (!stars || stars.length === 0) return;
+
+                    if (blinkingStarIndex !== -1 && stars[blinkingStarIndex]) {
+                        const activeStar = stars[blinkingStarIndex];
+                        const elapsed = timestamp - blinkStartTime;
+                        let progress = elapsed / BLINK_DURATION;
+
+                        if (progress < 1) {
+                            const amplitude = activeStar.baseOpacity * (1 - STAR_DIM_OPACITY_FACTOR);
+                            const dimLevel = activeStar.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                            activeStar.currentOpacity = dimLevel + amplitude * Math.sin(progress * Math.PI);
+                        } else {
+                            activeStar.currentOpacity = activeStar.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                            blinkingStarIndex = -1;
+                        }
+                    } else {
+                        if (timestamp - blinkStartTime > INTER_BLINK_DELAY) {
+                            stars.forEach((star, index) => {
+                                if (star && index !== blinkingStarIndex) {
+                                    star.currentOpacity = star.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                                }
+                            });
+                            if (stars.length > 0) {
+                                blinkingStarIndex = Math.floor(canvasRandom(0, stars.length));
+                                if (stars[blinkingStarIndex]) {
+                                     blinkStartTime = timestamp;
+                                } else {
+                                    blinkingStarIndex = -1;
+                                }
+                            }
+                        }
+                    }
+                }
+
+                function drawDarkModeCanvasBackground(timestamp) {
+                    const skyStart = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-start').trim() || '#000030';
+                    const skyMid = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-mid').trim() || '#101045';
+                    const skyEnd = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-end').trim() || '#202055';
+
+                    const skyGradient = dynamicBgCtx.createLinearGradient(0, 0, 0, dynamicBgCanvas.height);
+                    skyGradient.addColorStop(0, skyStart);
+                    skyGradient.addColorStop(0.7, skyMid);
+                    skyGradient.addColorStop(1, skyEnd);
+                    dynamicBgCtx.fillStyle = skyGradient;
+                    dynamicBgCtx.fillRect(0, 0, dynamicBgCanvas.width, dynamicBgCanvas.height);
+
+                    updateStarBlinkingLogic(timestamp);
+                    stars.forEach(star => { if (star) star.draw(); });
+
+                    if (timestamp - lastCometTimeBG > COMET_INTERVAL_BG && comets.length < 4) {
+                        comets.push(new CometBG());
+                        lastCometTimeBG = timestamp;
+                    }
+                    comets = comets.filter(comet => {
+                        if(comet) { comet.update(); comet.draw(); return !comet.isOffscreen(); }
+                        return false;
+                    });
+                }
+
+                function animationLoopDynamicBg(timestamp) {
+                    if (!dynamicBgCtx) return;
+                    dynamicBgCtx.clearRect(0, 0, dynamicBgCanvas.width, dynamicBgCanvas.height);
+                    drawDarkModeCanvasBackground(timestamp);
+                    dynamicBgAnimationFrameId = requestAnimationFrame(animationLoopDynamicBg);
+                }
+
+                setupDynamicBackgroundCanvasDimensions();
+                initDarkModeCanvas();
+                if (dynamicBgCanvas.width > 0 && dynamicBgCanvas.height > 0) {
+                     animationLoopDynamicBg(performance.now());
+                } else {
+                    console.warn('[CANVAS DEBUG] Canvas has no dimensions, not starting animation loop.');
+                }
+
+                window.addEventListener('resize', () => {
+                    setupDynamicBackgroundCanvasDimensions();
+                    initDarkModeCanvas();
+                    if (!dynamicBgAnimationFrameId && dynamicBgCanvas.width > 0 && dynamicBgCanvas.height > 0) {
+                        animationLoopDynamicBg(performance.now());
+                    } else if (dynamicBgCanvas.width === 0 || dynamicBgCanvas.height === 0) {
+                        if (dynamicBgAnimationFrameId) {
+                            cancelAnimationFrame(dynamicBgAnimationFrameId);
+                            dynamicBgAnimationFrameId = null;
+                        }
+                    }
+                });
+            } else {
+                console.warn("[CANVAS DEBUG] Canvas element with ID 'dynamicNightSkyCanvas' not found.");
+            }
+        });
+    </script>
+
 </body>
 </html>
