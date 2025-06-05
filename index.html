@@ -8,10 +8,12 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="style.css"> {/* Your SnapTask CSS */}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    </head>
+</head>
 <body>
+    <canvas id="dynamicNightSkyCanvas"></canvas> {/* <--- ADD THIS CANVAS  */}
+
     <header class="header">
         <div class="header-left">
             <a href="#" class="logo">Snap<span class="logo-task">Task</span></a>
@@ -67,10 +69,10 @@
         <div class="add-task-main-container">
             <button class="btn btn-primary" id="btn-add-task-main"><i class="fas fa-plus"></i>Add Task</button>
         </div>
-
     </main>
 
     <script>
+        // Your existing SnapTask JavaScript for dashboard functionality
         function updateDashboardUI(data) {
             const userNamePlaceholder = document.getElementById('user-name-placeholder');
             if (data && data.name) {
@@ -113,7 +115,7 @@
                     console.error("Unauthorized. Token might be invalid or expired.");
                     localStorage.removeItem('snapTaskAppToken');
                     updateDashboardUI({ name: "Guest", totalTasks: 0, completedTasks: 0 });
-                    alert("Session expired or invalid. Please log in again.");
+                    // alert("Session expired or invalid. Please log in again."); // Consider less disruptive UX
                 } else {
                     console.error("Failed to fetch dashboard data:", response.status, await response.text());
                     updateDashboardUI({ name: "User (Error)", totalTasks: 0, completedTasks: 0 });
@@ -128,7 +130,7 @@
             localStorage.removeItem('snapTaskAppToken');
             localStorage.removeItem('snapTaskUserInfo');
             alert('Logged out! Redirecting to login page.');
-            window.location.href = 'login.html';
+            window.location.href = 'login.html'; // Make sure you have a login.html
         });
 
         document.getElementById('btn-add-task-header').addEventListener('click', () => {
@@ -139,7 +141,6 @@
             alert('Main Area: Add new task functionality to be implemented!');
         });
 
-
         window.onload = function () {
             fetchDashboardData();
             const tl = gsap.timeline({ defaults: { duration: 0.6, ease: "Power2.easeOut" } });
@@ -149,5 +150,226 @@
               .from(".add-task-main-container", { autoAlpha: 0, y: 25, scale: 0.97 }, "-=0.4");
         };
     </script>
+
+    {/* SCRIPT FOR NIGHT SKY BACKGROUND - ADAPTED  */}
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dynamicBgCanvas = document.getElementById('dynamicNightSkyCanvas'); // Changed ID to avoid potential conflicts
+            if (dynamicBgCanvas) {
+                const dynamicBgCtx = dynamicBgCanvas.getContext('2d');
+                if (!dynamicBgCtx) {
+                    console.error("[CANVAS DEBUG] Failed to get 2D context for canvas.");
+                    return; // Exit if no context
+                }
+                let dynamicBgAnimationFrameId;
+
+                function canvasRandom(min, max) {
+                    return Math.random() * (max - min) + min;
+                }
+
+                function setupDynamicBackgroundCanvasDimensions() {
+                    dynamicBgCanvas.width = window.innerWidth;
+                    dynamicBgCanvas.height = window.innerHeight;
+                }
+
+                // --- Dark Mode: Stars & Comets ---
+                let stars = [];
+                let comets = [];
+                const MAX_STARS_BG = 150;
+                const COMET_INTERVAL_BG = 2500; //ms
+                let lastCometTimeBG = 0;
+                let blinkingStarIndex = -1;
+                let blinkStartTime = 0;
+                const BLINK_DURATION = 1200; //ms
+                const INTER_BLINK_DELAY = 150; //ms
+                const STAR_DIM_OPACITY_FACTOR = 0.3;
+
+                class StarBG {
+                    constructor() {
+                        this.x = canvasRandom(0, dynamicBgCanvas.width);
+                        this.y = canvasRandom(0, dynamicBgCanvas.height * 0.85); // Stars mostly in upper part
+                        this.radius = canvasRandom(0.6, 2.0);
+                        this.baseOpacity = canvasRandom(0.7, 1.0);
+                        this.currentOpacity = this.baseOpacity * STAR_DIM_OPACITY_FACTOR; // Start dimmed
+                    }
+                    draw() {
+                        let starColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-star-color').trim();
+                        if (!starColorCSS || starColorCSS === "''" || starColorCSS === "none") starColorCSS = 'rgba(255, 255, 224, 0.9)'; // Default
+
+                        if ((starColorCSS.startsWith("'") && starColorCSS.endsWith("'")) || (starColorCSS.startsWith('"') && starColorCSS.endsWith('"'))) {
+                            starColorCSS = starColorCSS.substring(1, starColorCSS.length - 1);
+                        }
+
+                        dynamicBgCtx.beginPath();
+                        dynamicBgCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                        const finalOpacity = Math.max(0, Math.min(1, this.currentOpacity));
+                        let finalColor = starColorCSS;
+
+                        if (starColorCSS.startsWith('rgba')) {
+                            finalColor = starColorCSS.replace(/,\s*[\d.]+\)$/, `, ${finalOpacity})`);
+                        } else if (starColorCSS.startsWith('rgb')) {
+                            finalColor = starColorCSS.replace('rgb', 'rgba').replace(')', `, ${finalOpacity})`);
+                        } else if (starColorCSS.startsWith('#')) {
+                            let r = 0, g = 0, b = 0;
+                            if (finalColor.length === 4) {
+                                r = parseInt(finalColor[1] + finalColor[1], 16); g = parseInt(finalColor[2] + finalColor[2], 16); b = parseInt(finalColor[3] + finalColor[3], 16);
+                            } else if (finalColor.length === 7) {
+                                r = parseInt(finalColor.substring(1, 3), 16); g = parseInt(finalColor.substring(3, 5), 16); b = parseInt(finalColor.substring(5, 7), 16);
+                            }
+                            finalColor = `rgba(${r},${g},${b},${finalOpacity})`;
+                        }
+                        dynamicBgCtx.fillStyle = finalColor;
+                        dynamicBgCtx.fill();
+                    }
+                }
+
+                class CometBG {
+                    constructor() {
+                        this.x = canvasRandom(0, dynamicBgCanvas.width);
+                        this.y = canvasRandom(-30, -5); // Start off-screen top
+                        this.length = canvasRandom(80, 150);
+                        this.speed = canvasRandom(1.5, 4);
+                        this.angle = canvasRandom(Math.PI * 0.3, Math.PI * 0.7); // Angle downwards
+                        this.dx = Math.cos(this.angle) * this.speed;
+                        this.dy = Math.sin(this.angle) * this.speed;
+                        this.brightness = canvasRandom(0.7, 1);
+                    }
+                    update() { this.x += this.dx; this.y += this.dy; }
+                    draw() {
+                        const headColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-comet-head-color').trim();
+                        const tailMidColorCSS = getComputedStyle(document.documentElement).getPropertyValue('--canvas-comet-tail-mid-color').trim();
+
+                        const headColor = headColorCSS && headColorCSS !== "none" ? headColorCSS.replace("1)", `${this.brightness})`) : `rgba(255, 255, 224, ${this.brightness})`;
+                        const tailMidColor = tailMidColorCSS && tailMidColorCSS !== "none" ? tailMidColorCSS.replace("0.5)", `${this.brightness * 0.5})`) : `rgba(255, 255, 224, ${this.brightness * 0.5})`;
+                        const tailEndColor = `rgba(255, 255, 224, 0)`; // Fully transparent tail end
+
+                        dynamicBgCtx.beginPath();
+                        const tailX = this.x - this.dx * (this.length / this.speed);
+                        const tailY = this.y - this.dy * (this.length / this.speed);
+                        const gradient = dynamicBgCtx.createLinearGradient(this.x, this.y, tailX, tailY);
+                        gradient.addColorStop(0, headColor);
+                        gradient.addColorStop(0.3, tailMidColor);
+                        gradient.addColorStop(1, tailEndColor);
+                        dynamicBgCtx.strokeStyle = gradient;
+                        dynamicBgCtx.lineWidth = canvasRandom(0.5, 2.5);
+                        dynamicBgCtx.moveTo(this.x, this.y);
+                        dynamicBgCtx.lineTo(tailX, tailY);
+                        dynamicBgCtx.stroke();
+                    }
+                    isOffscreen() { return this.y > dynamicBgCanvas.height + this.length || this.x < -this.length || this.x > dynamicBgCanvas.width + this.length; }
+                }
+
+                function initDarkModeCanvas() {
+                    stars = [];
+                    for (let i = 0; i < MAX_STARS_BG; i++) { stars.push(new StarBG()); }
+                    stars.forEach(star => { if (star) star.currentOpacity = star.baseOpacity * STAR_DIM_OPACITY_FACTOR; });
+                    comets = [];
+                    lastCometTimeBG = performance.now();
+                    blinkingStarIndex = -1; // Reset blinking state
+                    blinkStartTime = performance.now(); // Reset blink timer
+                }
+
+                function updateStarBlinkingLogic(timestamp) {
+                    if (!stars || stars.length === 0) return;
+
+                    if (blinkingStarIndex !== -1 && stars[blinkingStarIndex]) {
+                        const activeStar = stars[blinkingStarIndex];
+                        const elapsed = timestamp - blinkStartTime;
+                        let progress = elapsed / BLINK_DURATION;
+
+                        if (progress < 1) {
+                            const amplitude = activeStar.baseOpacity * (1 - STAR_DIM_OPACITY_FACTOR);
+                            const dimLevel = activeStar.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                            // Sinusoidal blink: dim -> bright -> dim
+                            activeStar.currentOpacity = dimLevel + amplitude * Math.sin(progress * Math.PI);
+                        } else {
+                            activeStar.currentOpacity = activeStar.baseOpacity * STAR_DIM_OPACITY_FACTOR; // End in dimmed state
+                            blinkingStarIndex = -1; // Ready for next blink cycle selection
+                            // No need to set blinkStartTime here, it's set when a new star is chosen
+                        }
+                    } else { // Select a new star to blink after delay
+                        if (timestamp - blinkStartTime > INTER_BLINK_DELAY) {
+                             // Ensure all non-blinking stars are at their dim state
+                            stars.forEach((star, index) => {
+                                if (star && index !== blinkingStarIndex) { // Check star exists
+                                    star.currentOpacity = star.baseOpacity * STAR_DIM_OPACITY_FACTOR;
+                                }
+                            });
+                            if (stars.length > 0) {
+                                blinkingStarIndex = Math.floor(canvasRandom(0, stars.length));
+                                if (stars[blinkingStarIndex]) { // Check selected star exists
+                                     blinkStartTime = timestamp; // Start blink timer for the new star
+                                } else {
+                                    blinkingStarIndex = -1; // Invalid star selected
+                                }
+                            }
+                        }
+                    }
+                }
+
+
+                function drawDarkModeCanvasBackground(timestamp) {
+                    const skyStart = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-start').trim() || '#000030';
+                    const skyMid = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-mid').trim() || '#101045';
+                    const skyEnd = getComputedStyle(document.documentElement).getPropertyValue('--canvas-night-sky-gradient-end').trim() || '#202055';
+
+                    const skyGradient = dynamicBgCtx.createLinearGradient(0, 0, 0, dynamicBgCanvas.height);
+                    skyGradient.addColorStop(0, skyStart);
+                    skyGradient.addColorStop(0.7, skyMid);
+                    skyGradient.addColorStop(1, skyEnd);
+                    dynamicBgCtx.fillStyle = skyGradient;
+                    dynamicBgCtx.fillRect(0, 0, dynamicBgCanvas.width, dynamicBgCanvas.height);
+
+                    updateStarBlinkingLogic(timestamp);
+                    stars.forEach(star => { if (star) star.draw(); });
+
+                    if (timestamp - lastCometTimeBG > COMET_INTERVAL_BG && comets.length < 4) { // Limit max comets
+                        comets.push(new CometBG());
+                        lastCometTimeBG = timestamp;
+                    }
+                    comets = comets.filter(comet => {
+                        if(comet) { comet.update(); comet.draw(); return !comet.isOffscreen(); }
+                        return false;
+                    });
+                }
+
+                function animationLoopDynamicBg(timestamp) {
+                    if (!dynamicBgCtx) return;
+                    dynamicBgCtx.clearRect(0, 0, dynamicBgCanvas.width, dynamicBgCanvas.height);
+                    drawDarkModeCanvasBackground(timestamp);
+                    dynamicBgAnimationFrameId = requestAnimationFrame(animationLoopDynamicBg);
+                }
+
+                // --- Initialize and Start ---
+                setupDynamicBackgroundCanvasDimensions();
+                initDarkModeCanvas(); // Directly initialize dark mode
+                if (dynamicBgCanvas.width > 0 && dynamicBgCanvas.height > 0) {
+                     animationLoopDynamicBg(performance.now());
+                } else {
+                    console.warn('[CANVAS DEBUG] Canvas has no dimensions, not starting animation loop.');
+                }
+
+
+                window.addEventListener('resize', () => {
+                    setupDynamicBackgroundCanvasDimensions();
+                    initDarkModeCanvas(); // Re-initialize for new dimensions
+                    // If animation wasn't running due to 0 dimensions, try starting it again
+                    if (!dynamicBgAnimationFrameId && dynamicBgCanvas.width > 0 && dynamicBgCanvas.height > 0) {
+                        animationLoopDynamicBg(performance.now());
+                    } else if (dynamicBgCanvas.width === 0 || dynamicBgCanvas.height === 0) {
+                        // If resized to 0, stop animation
+                        if (dynamicBgAnimationFrameId) {
+                            cancelAnimationFrame(dynamicBgAnimationFrameId);
+                            dynamicBgAnimationFrameId = null;
+                        }
+                    }
+                });
+
+            } else {
+                console.warn("[CANVAS DEBUG] Canvas element with ID 'dynamicNightSkyCanvas' not found.");
+            }
+        });
+    </script>
+
 </body>
 </html>
