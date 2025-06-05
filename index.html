@@ -8,143 +8,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #8B5CF6; 
-            --primary-hover-color: #7C3AED;
-            --secondary-bg-color: #333333; 
-            --secondary-hover-bg-color: #444444;
-            --text-primary-dark: #EAEAEA; 
-            --text-secondary-dark: #A0A0A0; 
-            --bg-dark: #000000; 
-            --card-bg-dark: #1A1A1A; 
-            --border-dark: #2C2C2C; 
-            --text-light: #FFFFFF; 
-            --green-accent: #10B981;
-            --red-accent: #EF4444;
-            --gray-accent: #757575;
-        }
-
-        html, body {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-primary-dark);
-            height: 100%;
-            overflow-x: hidden;
-        }
-
-        body { 
-            display: flex;
-            flex-direction: column; 
-            min-height: 100vh; 
-        }
-
-        .header {
-            position: fixed; 
-            top: 0;
-            left: 0;
-            width: 100%; 
-            box-sizing: border-box; 
-            background-color: rgba(10, 10, 10, 0.85); 
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            padding: 0 20px; 
-            height: 60px;
-            display: flex;
-            justify-content: space-between; 
-            align-items: center;
-            z-index: 1000;
-            border-bottom: 1px solid var(--border-dark);
-            visibility: hidden; 
-        }
-
-        .header-left { flex-shrink: 0; display: flex; align-items: center; }
-        .header-left .logo { font-size: 22px; font-weight: 800; color: var(--text-primary-dark); text-decoration: none; white-space: nowrap; }
-        .header-left .logo .logo-task { color: var(--primary-color); } 
-
-        .header-center { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; margin: 0 15px; overflow: hidden; }
-        .header-center nav ul { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 10px; }
-        .header-center nav a { text-decoration: none; color: var(--text-secondary-dark); font-weight: 500; font-size: 13px; padding: 6px 8px; border-radius: 5px; white-space: nowrap; transition: color 0.2s ease, background-color 0.2s ease; }
-        .header-center nav a:hover { 
-            color: var(--primary-color); 
-            background-color: rgba(139, 92, 246, 0.1); 
-        }
-        .header-center nav a.active { 
-            color: var(--primary-color);
-            font-weight: 700;
-            background-color: transparent;
-        }
-
-        .header-right { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-        .btn { padding: 8px 15px; border: none; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; transition: all 0.2s ease-in-out; box-shadow: 0 1px 2px rgba(0,0,0,0.3); white-space: nowrap; display: inline-flex; align-items: center; }
-        .btn i.fas { font-size: 11px; margin-right: 5px; }
-        .btn-primary { background-color: var(--primary-color); color: var(--text-light); }
-        .btn-primary:hover { background-color: var(--primary-hover-color); transform: translateY(-1px); box-shadow: 0 2px 5px rgba(139, 92, 246, 0.3); }
-        .btn-secondary { background-color: var(--secondary-bg-color); color: var(--text-primary-dark); }
-        .btn-secondary:hover { background-color: var(--secondary-hover-bg-color); transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
-
-        .main-container {
-            padding-top: 60px; 
-            flex-grow: 1; 
-            display: flex;
-            flex-direction: column;
-            justify-content: center; 
-            align-items: center; 
-            width: 100%; 
-            max-width: 1000px; 
-            margin-left: auto; 
-            margin-right: auto; 
-            padding-bottom: 40px; 
-            box-sizing: border-box;
-        }
-        .welcome-banner { 
-            text-align: center; 
-            padding: 20px 0; 
-            visibility: hidden; 
-            width: 100%; 
-            max-width: 800px; 
-            margin-bottom: 30px; 
-        }
-        .welcome-banner .welcome-heading { font-size: 42px; font-weight: 800; color: var(--text-primary-dark); margin: 0 0 8px 0; letter-spacing: -0.025em; }
-        .welcome-banner .welcome-heading .user-name-highlight { color: var(--primary-color); } 
-        .welcome-banner .welcome-subheading { font-size: 42px; font-weight: 700; color: var(--text-secondary-dark); margin: 0; letter-spacing: -0.025em; }
-        
-        .task-progress-widget { 
-            background-color: var(--card-bg-dark); 
-            padding: 30px; 
-            border-radius: 16px; 
-            box-shadow: 0 10px 35px rgba(0,0,0,0.4); 
-            border: 1px solid var(--border-dark); 
-            visibility: hidden; 
-            width: 100%; 
-            max-width: 800px; 
-            margin-bottom: 30px; 
-        }
-        .task-progress-widget h2 { font-size: 20px; font-weight: 600; color: var(--text-primary-dark); margin: 0 0 25px 0; text-align: center; }
-        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; }
-        .stat-item { background-color: #252525; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid var(--border-dark); }
-        .stat-item .stat-label { font-size: 14px; color: var(--text-secondary-dark); margin-bottom: 8px; font-weight: 500; }
-        .stat-item .stat-value { font-size: 32px; font-weight: 700; color: var(--text-primary-dark); margin-bottom: 15px; }
-        .progress-bar-container { width: 100%; background-color: #333; border-radius: 8px; height: 12px; overflow: hidden; }
-        .progress-bar { height: 100%; border-radius: 8px; transition: width 0.5s ease-in-out; }
-        .progress-bar.completed { background-color: var(--green-accent); }
-        .progress-bar.not-completed { background-color: var(--red-accent); }
-        .progress-bar.total { background-color: var(--primary-color); } 
-
-        .add-task-main-container { 
-            text-align: center; 
-            width: 100%;
-            max-width: 800px; 
-            visibility: hidden; 
-            margin-top: 0; 
-        }
-        
-    </style>
-</head>
+    </head>
 <body>
     <header class="header">
         <div class="header-left">
@@ -198,10 +64,10 @@
             </div>
         </section>
 
-        <div class="add-task-main-container"> 
+        <div class="add-task-main-container">
             <button class="btn btn-primary" id="btn-add-task-main"><i class="fas fa-plus"></i>Add Task</button>
         </div>
-        
+
     </main>
 
     <script>
@@ -209,12 +75,12 @@
             const userNamePlaceholder = document.getElementById('user-name-placeholder');
             if (data && data.name) {
                 userNamePlaceholder.textContent = data.name;
-                 userNamePlaceholder.classList.add('user-name-highlight'); 
+                userNamePlaceholder.classList.add('user-name-highlight');
             } else {
                 userNamePlaceholder.textContent = "Guest";
                 userNamePlaceholder.classList.remove('user-name-highlight');
             }
-            
+
             const totalTasks = data && data.totalTasks !== undefined ? data.totalTasks : 0;
             const completedTasks = data && data.completedTasks !== undefined ? data.completedTasks : 0;
             const notCompletedTasks = totalTasks - completedTasks;
@@ -236,7 +102,7 @@
                 return;
             }
             try {
-                const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', { 
+                const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' }
                 });
@@ -257,25 +123,25 @@
                 updateDashboardUI({ name: "User (Offline)", totalTasks: 0, completedTasks: 0 });
             }
         }
-        
+
         document.getElementById('btn-logout').addEventListener('click', () => {
             localStorage.removeItem('snapTaskAppToken');
-            localStorage.removeItem('snapTaskUserInfo'); 
+            localStorage.removeItem('snapTaskUserInfo');
             alert('Logged out! Redirecting to login page.');
-            window.location.href = 'login.html'; 
+            window.location.href = 'login.html';
         });
 
         document.getElementById('btn-add-task-header').addEventListener('click', () => {
             alert('Header: Add new task functionality to be implemented!');
         });
-        
+
         document.getElementById('btn-add-task-main').addEventListener('click', () => {
             alert('Main Area: Add new task functionality to be implemented!');
         });
 
 
         window.onload = function () {
-            fetchDashboardData(); 
+            fetchDashboardData();
             const tl = gsap.timeline({ defaults: { duration: 0.6, ease: "Power2.easeOut" } });
             tl.from(".header", { autoAlpha: 0, y: -30, delay: 0.2 })
               .from(".welcome-banner", { autoAlpha: 0, y: 25, scale: 0.97 }, "-=0.4")
