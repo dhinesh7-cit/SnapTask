@@ -6,21 +6,26 @@
     --secondary-hover-bg-color: #444444;
     --text-primary-dark: #EAEAEA;
     --text-secondary-dark: #A0A0A0;
-    --bg-dark: #000000; /* Main background for SnapTask content areas */
-    --card-bg-dark: #1A1A1A;
-    --border-dark: #2C2C2C;
+    /* --bg-dark: #000000;  You can still keep this if other elements use it,
+                           but body will be transparent. */
+    --card-bg-dark: #1A1A1A; /* Example: rgba(26, 26, 26, 0.85) if you want cards semi-transparent */
+    --border-dark: #2C2C2C; /* Example: rgba(44, 44, 44, 0.7) for semi-transparent borders */
     --text-light: #FFFFFF;
     --green-accent: #10B981;
     --red-accent: #EF4444;
     --gray-accent: #757575;
 
-    /* CSS Variables for the Animated Night Sky Background */
-    --canvas-night-sky-gradient-start: #000030;
-    --canvas-night-sky-gradient-mid: #101045;
-    --canvas-night-sky-gradient-end: #202055;
+    /* CSS Variables for the Animated Night Sky Background (Clean Black Sky) */
+    --canvas-night-sky-gradient-start: #000000;
+    --canvas-night-sky-gradient-mid: #000000;
+    --canvas-night-sky-gradient-end: #000000;
     --canvas-star-color: rgba(255, 255, 224, 0.9);
     --canvas-comet-head-color: rgba(255, 255, 224, 1);
     --canvas-comet-tail-mid-color: rgba(255, 255, 224, 0.5);
+}
+
+html { /* It's good practice to have html take full height too */
+    height: 100%;
 }
 
 html, body {
@@ -28,21 +33,18 @@ html, body {
     padding: 0;
     box-sizing: border-box;
     font-family: 'Inter', sans-serif;
-    /* The overall page background will be the canvas,
-       so body's explicit background-color can be transparent
-       or match the darkest part of the canvas for seamlessness if needed.
-       If elements don't have their own backgrounds, they'll show the canvas. */
-    background-color: var(--bg-dark); /* Fallback or base if canvas isn't full screen */
     color: var(--text-primary-dark);
     height: 100%;
     overflow-x: hidden;
 }
 
 body {
+    /* MODIFICATION: Make body background transparent */
+    background-color: transparent;
     display: flex;
     flex-direction: column;
     min-height: 100vh;
-    position: relative; /* For z-index stacking context */
+    position: relative;
 }
 
 #dynamicNightSkyCanvas {
@@ -51,7 +53,7 @@ body {
     left: 0;
     width: 100%;
     height: 100%;
-    z-index: -1; /* Place it behind all other content */
+    z-index: -1;
     display: block;
 }
 
@@ -61,8 +63,8 @@ body {
     left: 0;
     width: 100%;
     box-sizing: border-box;
-    /* Adjusted for transparency */
-    background-color: rgba(10, 10, 10, 0.75); /* Original: rgba(10, 10, 10, 0.85) */
+    /* Ensure header has a background; adjust transparency as needed */
+    background-color: rgba(20, 20, 30, 0); /* Less transparent, more visible */
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     padding: 0 20px;
@@ -70,11 +72,12 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    z-index: 1000; /* Header stays above other page content but below modals if any */
-    border-bottom: 1px solid rgba(44, 44, 44, 0.7); /* Adjusted border-dark for transparency */
+    z-index: 1000;
+    border-bottom: 1px solid rgba(44, 44, 44, 0.7);
     visibility: hidden; /* Managed by GSAP */
 }
 
+/* ... (styles for .header-left, .header-center, .header-right, .btn remain the same) ... */
 .header-left { flex-shrink: 0; display: flex; align-items: center; }
 .header-left .logo { font-size: 22px; font-weight: 800; color: var(--text-primary-dark); text-decoration: none; white-space: nowrap; }
 .header-left .logo .logo-task { color: var(--primary-color); }
@@ -89,7 +92,7 @@ body {
 .header-center nav a.active {
     color: var(--primary-color);
     font-weight: 700;
-    background-color: transparent; /* Or a very subtle highlight like rgba(139, 92, 246, 0.05) */
+    background-color: transparent;
 }
 
 .header-right { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
@@ -100,8 +103,9 @@ body {
 .btn-secondary { background-color: var(--secondary-bg-color); color: var(--text-primary-dark); }
 .btn-secondary:hover { background-color: var(--secondary-hover-bg-color); transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
 
+
 .main-container {
-    padding-top: 60px; /* Account for fixed header */
+    padding-top: 60px;
     flex-grow: 1;
     display: flex;
     flex-direction: column;
@@ -113,8 +117,8 @@ body {
     margin-right: auto;
     padding-bottom: 40px;
     box-sizing: border-box;
-    /* If you want the main content area to have a solid background partially obscuring the canvas: */
-    /* background-color: rgba(0, 0, 0, 0.3); */ /* Example: very dark semi-transparent */
+    /* main-container itself can be transparent or have a very subtle overlay if needed */
+    /* background-color: rgba(0,0,0,0.1); */ /* Example: subtle dark overlay */
 }
 
 .welcome-banner {
@@ -124,49 +128,56 @@ body {
     width: 100%;
     max-width: 800px;
     margin-bottom: 30px;
+    /* Welcome banner content is text, so it doesn't need its own background
+       unless you want to style it as a card. */
 }
+/* ... (styles for .welcome-banner .welcome-heading etc. remain same) ... */
 .welcome-banner .welcome-heading { font-size: 42px; font-weight: 800; color: var(--text-primary-dark); margin: 0 0 8px 0; letter-spacing: -0.025em; }
 .welcome-banner .welcome-heading .user-name-highlight { color: var(--primary-color); }
 .welcome-banner .welcome-subheading { font-size: 42px; font-weight: 700; color: var(--text-secondary-dark); margin: 0; letter-spacing: -0.025em; }
 
+
 .task-progress-widget {
-    /* Adjusted for transparency */
-    background-color: rgba(26, 26, 26, 0.85); /* Original: var(--card-bg-dark) #1A1A1A */
+    /* Ensure this card-like element has its own background */
+    background-color: rgba(26, 26, 26, 0.85); /* var(--card-bg-dark) with alpha */
     padding: 30px;
     border-radius: 16px;
     box-shadow: 0 10px 35px rgba(0,0,0,0.4);
-    /* Adjusted for transparency */
-    border: 1px solid rgba(44, 44, 44, 0.7); /* Original: var(--border-dark) #2C2C2C */
+    border: 1px solid rgba(44, 44, 44, 0.7); /* var(--border-dark) with alpha */
     visibility: hidden; /* Managed by GSAP */
     width: 100%;
     max-width: 800px;
     margin-bottom: 30px;
 }
+/* ... (styles for .task-progress-widget h2, .stats-container remain same) ... */
 .task-progress-widget h2 { font-size: 20px; font-weight: 600; color: var(--text-primary-dark); margin: 0 0 25px 0; text-align: center; }
 .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; }
 
+
 .stat-item {
-    /* Adjusted for transparency */
-    background-color: rgba(37, 37, 37, 0.8); /* Original: #252525 */
+    /* Ensure these items have their own background */
+    background-color: rgba(37, 37, 37, 0.8); /* Original #252525 with alpha */
     padding: 20px;
     border-radius: 10px;
     text-align: center;
-    /* Adjusted for transparency */
-    border: 1px solid rgba(44, 44, 44, 0.6); /* Original: var(--border-dark) */
+    border: 1px solid rgba(44, 44, 44, 0.6); /* var(--border-dark) with alpha */
 }
+/* ... (styles for .stat-item labels, values, progress bars remain same) ... */
 .stat-item .stat-label { font-size: 14px; color: var(--text-secondary-dark); margin-bottom: 8px; font-weight: 500; }
 .stat-item .stat-value { font-size: 32px; font-weight: 700; color: var(--text-primary-dark); margin-bottom: 15px; }
-.progress-bar-container { width: 100%; background-color: rgba(51, 51, 51, 0.7); border-radius: 8px; height: 12px; overflow: hidden; } /* #333 original */
+.progress-bar-container { width: 100%; background-color: rgba(51, 51, 51, 0.7); border-radius: 8px; height: 12px; overflow: hidden; }
 .progress-bar { height: 100%; border-radius: 8px; transition: width 0.5s ease-in-out; }
 .progress-bar.completed { background-color: var(--green-accent); }
 .progress-bar.not-completed { background-color: var(--red-accent); }
 .progress-bar.total { background-color: var(--primary-color); }
+
 
 .add-task-main-container {
     text-align: center;
     width: 100%;
     max-width: 800px;
     visibility: hidden; /* Managed by GSAP */
-    margin-top: 0; /* Was 0, could be 20px or so for spacing if needed */
-    padding: 10px 0; /* Added some padding */
+    margin-top: 0;
+    padding: 10px 0;
+    /* This container likely doesn't need its own background if it just holds a button. */
 }
