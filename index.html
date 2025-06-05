@@ -8,11 +8,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="style.css"> {/* Your SnapTask CSS */}
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 </head>
 <body>
-    <canvas id="dynamicNightSkyCanvas"></canvas> {/* Canvas for animated background */}
+    <canvas id="dynamicNightSkyCanvas"></canvas>
 
     <header class="header">
         <div class="header-left">
@@ -72,7 +72,6 @@
     </main>
 
     <script>
-        // SnapTask Dashboard JavaScript
         function updateDashboardUI(data) {
             const userNamePlaceholder = document.getElementById('user-name-placeholder');
             if (data && data.name) {
@@ -104,7 +103,6 @@
                 return;
             }
             try {
-                // Replace with your actual API endpoint if needed
                 const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', {
                     method: 'GET',
                     headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' }
@@ -116,8 +114,6 @@
                     console.error("Unauthorized. Token might be invalid or expired.");
                     localStorage.removeItem('snapTaskAppToken');
                     updateDashboardUI({ name: "Guest", totalTasks: 0, completedTasks: 0 });
-                    // Consider a less disruptive notification than alert, e.g., a small banner
-                    // alert("Session expired or invalid. Please log in again.");
                 } else {
                     console.error("Failed to fetch dashboard data:", response.status, await response.text());
                     updateDashboardUI({ name: "User (Error)", totalTasks: 0, completedTasks: 0 });
@@ -130,24 +126,21 @@
 
         document.getElementById('btn-logout').addEventListener('click', () => {
             localStorage.removeItem('snapTaskAppToken');
-            localStorage.removeItem('snapTaskUserInfo'); // If you store other user info
-            alert('Logged out! Redirecting to login page.'); // Consider redirecting after user clicks OK
-            window.location.href = 'login.html'; // Ensure you have a login.html page
+            localStorage.removeItem('snapTaskUserInfo');
+            alert('Logged out! Redirecting to login page.');
+            window.location.href = 'login.html';
         });
 
         document.getElementById('btn-add-task-header').addEventListener('click', () => {
             alert('Header: Add new task functionality to be implemented!');
-            // Future: Show a modal or navigate to an "add task" page
         });
 
         document.getElementById('btn-add-task-main').addEventListener('click', () => {
             alert('Main Area: Add new task functionality to be implemented!');
-            // Future: Show a modal or navigate to an "add task" page
         });
 
         window.onload = function () {
-            fetchDashboardData(); // Fetch data when the page loads
-            // GSAP Animations for content
+            fetchDashboardData();
             const tl = gsap.timeline({ defaults: { duration: 0.6, ease: "Power2.easeOut" } });
             tl.from(".header", { autoAlpha: 0, y: -30, delay: 0.2 })
               .from(".welcome-banner", { autoAlpha: 0, y: 25, scale: 0.97 }, "-=0.4")
@@ -157,7 +150,6 @@
     </script>
 
     <script>
-        // JavaScript for Night Sky Animated Background
         document.addEventListener('DOMContentLoaded', () => {
             const dynamicBgCanvas = document.getElementById('dynamicNightSkyCanvas');
             if (dynamicBgCanvas) {
@@ -180,12 +172,12 @@
                 let stars = [];
                 let comets = [];
                 const MAX_STARS_BG = 150;
-                const COMET_INTERVAL_BG = 2500; //ms
+                const COMET_INTERVAL_BG = 2500;
                 let lastCometTimeBG = 0;
                 let blinkingStarIndex = -1;
                 let blinkStartTime = 0;
-                const BLINK_DURATION = 1200; //ms
-                const INTER_BLINK_DELAY = 150; //ms
+                const BLINK_DURATION = 1200;
+                const INTER_BLINK_DELAY = 150;
                 const STAR_DIM_OPACITY_FACTOR = 0.3;
 
                 class StarBG {
