@@ -1,132 +1,65 @@
+/* Add these to your existing style.css for SnapTask */
+
 :root {
+    /* ... your existing SnapTask CSS variables ... */
     --primary-color: #8B5CF6;
     --primary-hover-color: #7C3AED;
     --secondary-bg-color: #333333;
     --secondary-hover-bg-color: #444444;
     --text-primary-dark: #EAEAEA;
     --text-secondary-dark: #A0A0A0;
-    --bg-dark: #000000;
+    --bg-dark: #000000; /* Main background for SnapTask, canvas will be behind this */
     --card-bg-dark: #1A1A1A;
     --border-dark: #2C2C2C;
     --text-light: #FFFFFF;
     --green-accent: #10B981;
     --red-accent: #EF4444;
     --gray-accent: #757575;
-}
 
-html, body {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    font-family: 'Inter', sans-serif;
-    background-color: var(--bg-dark);
-    color: var(--text-primary-dark);
-    height: 100%;
-    overflow-x: hidden;
+    /* CSS Variables for the Animated Night Sky Background */
+    --canvas-night-sky-gradient-start: #000030;
+    --canvas-night-sky-gradient-mid: #101045;
+    --canvas-night-sky-gradient-end: #202055;
+    --canvas-star-color: rgba(255, 255, 224, 0.9);
+    --canvas-comet-head-color: rgba(255, 255, 224, 1); /* Bright comet head */
+    --canvas-comet-tail-mid-color: rgba(255, 255, 224, 0.5); /* Comet tail fading */
 }
 
 body {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
+    /* ... your existing body styles ... */
+    /* Ensure body background allows canvas to show if elements are transparent */
+    /* background-color: transparent; or ensure other elements have backgrounds */
+    position: relative; /* Needed for z-index stacking if not already set */
 }
 
-.header {
+#dynamicNightSkyCanvas {
     position: fixed;
     top: 0;
     left: 0;
     width: 100%;
-    box-sizing: border-box;
-    background-color: rgba(10, 10, 10, 0.85);
-    backdrop-filter: blur(10px);
-    -webkit-backdrop-filter: blur(10px);
-    padding: 0 20px;
-    height: 60px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 1000;
-    border-bottom: 1px solid var(--border-dark);
-    visibility: hidden;
+    height: 100%;
+    z-index: -1; /* Place it behind all other content */
+    display: block; /* Ensure it's treated as a block-level element */
 }
 
-.header-left { flex-shrink: 0; display: flex; align-items: center; }
-.header-left .logo { font-size: 22px; font-weight: 800; color: var(--text-primary-dark); text-decoration: none; white-space: nowrap; }
-.header-left .logo .logo-task { color: var(--primary-color); }
-
-.header-center { flex: 1 1 auto; min-width: 0; display: flex; justify-content: center; margin: 0 15px; overflow: hidden; }
-.header-center nav ul { list-style: none; padding: 0; margin: 0; display: flex; align-items: center; gap: 10px; }
-.header-center nav a { text-decoration: none; color: var(--text-secondary-dark); font-weight: 500; font-size: 13px; padding: 6px 8px; border-radius: 5px; white-space: nowrap; transition: color 0.2s ease, background-color 0.2s ease; }
-.header-center nav a:hover {
-    color: var(--primary-color);
-    background-color: rgba(139, 92, 246, 0.1);
+/* Make SnapTask content background slightly transparent to see stars better */
+/* This is optional and depends on the desired effect */
+.header {
+    /* background-color: rgba(10, 10, 10, 0.85); original */
+    background-color: rgba(10, 10, 10, 0.75); /* Slightly more transparent */
+    /* ... rest of your .header styles ... */
 }
-.header-center nav a.active {
-    color: var(--primary-color);
-    font-weight: 700;
-    background-color: transparent;
-}
-
-.header-right { flex: 0 0 auto; display: flex; align-items: center; gap: 10px; }
-.btn { padding: 8px 15px; border: none; border-radius: 6px; font-weight: 600; font-size: 12px; cursor: pointer; transition: all 0.2s ease-in-out; box-shadow: 0 1px 2px rgba(0,0,0,0.3); white-space: nowrap; display: inline-flex; align-items: center; }
-.btn i.fas { font-size: 11px; margin-right: 5px; }
-.btn-primary { background-color: var(--primary-color); color: var(--text-light); }
-.btn-primary:hover { background-color: var(--primary-hover-color); transform: translateY(-1px); box-shadow: 0 2px 5px rgba(139, 92, 246, 0.3); }
-.btn-secondary { background-color: var(--secondary-bg-color); color: var(--text-primary-dark); }
-.btn-secondary:hover { background-color: var(--secondary-hover-bg-color); transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.25); }
 
 .main-container {
-    padding-top: 60px;
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    width: 100%;
-    max-width: 1000px;
-    margin-left: auto;
-    margin-right: auto;
-    padding-bottom: 40px;
-    box-sizing: border-box;
+     /* Ensure main content sections have a background if you want them to obscure the canvas partially */
+     /* Or make them more transparent if you want more of the canvas to show through */
+    /* background-color: var(--bg-dark); /* This might be needed if body is transparent */
 }
-.welcome-banner {
-    text-align: center;
-    padding: 20px 0;
-    visibility: hidden;
-    width: 100%;
-    max-width: 800px;
-    margin-bottom: 30px;
-}
-.welcome-banner .welcome-heading { font-size: 42px; font-weight: 800; color: var(--text-primary-dark); margin: 0 0 8px 0; letter-spacing: -0.025em; }
-.welcome-banner .welcome-heading .user-name-highlight { color: var(--primary-color); }
-.welcome-banner .welcome-subheading { font-size: 42px; font-weight: 700; color: var(--text-secondary-dark); margin: 0; letter-spacing: -0.025em; }
 
-.task-progress-widget {
-    background-color: var(--card-bg-dark);
-    padding: 30px;
-    border-radius: 16px;
-    box-shadow: 0 10px 35px rgba(0,0,0,0.4);
-    border: 1px solid var(--border-dark);
-    visibility: hidden;
-    width: 100%;
-    max-width: 800px;
-    margin-bottom: 30px;
-}
-.task-progress-widget h2 { font-size: 20px; font-weight: 600; color: var(--text-primary-dark); margin: 0 0 25px 0; text-align: center; }
-.stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px; }
-.stat-item { background-color: #252525; padding: 20px; border-radius: 10px; text-align: center; border: 1px solid var(--border-dark); }
-.stat-item .stat-label { font-size: 14px; color: var(--text-secondary-dark); margin-bottom: 8px; font-weight: 500; }
-.stat-item .stat-value { font-size: 32px; font-weight: 700; color: var(--text-primary-dark); margin-bottom: 15px; }
-.progress-bar-container { width: 100%; background-color: #333; border-radius: 8px; height: 12px; overflow: hidden; }
-.progress-bar { height: 100%; border-radius: 8px; transition: width 0.5s ease-in-out; }
-.progress-bar.completed { background-color: var(--green-accent); }
-.progress-bar.not-completed { background-color: var(--red-accent); }
-.progress-bar.total { background-color: var(--primary-color); }
-
-.add-task-main-container {
-    text-align: center;
-    width: 100%;
-    max-width: 800px;
-    visibility: hidden;
-    margin-top: 0;
+.task-progress-widget, .stat-item {
+    /* background-color: var(--card-bg-dark); original */
+    background-color: rgba(26, 26, 26, 0.85); /* Example: Making cards slightly transparent */
+    /* border: 1px solid var(--border-dark); */
+    border: 1px solid rgba(44, 44, 44, 0.7);
+    /* ... rest of your styles ... */
 }
