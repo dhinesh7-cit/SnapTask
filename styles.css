@@ -115,7 +115,7 @@ body {
     box-sizing: border-box;
 }
 
-#home-content, #profile-section {
+#home-content, #profile-section, #tasks-section {
     width: 100%;
     display: flex;
     flex-direction: column;
@@ -207,6 +207,61 @@ body {
     width: 100%;
     max-width: 800px;
     margin-top: -10px;
+}
+
+/* --- New Tasks Section --- */
+.tasks-container {
+    width: 100%;
+    max-width: 800px;
+    background-color: rgba(26, 26, 26, 0.85);
+    padding: 20px 30px;
+    border-radius: 16px;
+    border: 1px solid var(--border-dark);
+}
+
+.tasks-container h2 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 20px;
+}
+
+#task-list-items {
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.task-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 15px 5px;
+    border-bottom: 1px solid var(--border-dark);
+}
+.task-list-item:last-child {
+    border-bottom: none;
+}
+.task-list-item-details {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+.task-list-item .description {
+    font-weight: 500;
+}
+.task-list-item .status {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+}
+.task-list-item .status.pending {
+    background-color: rgba(239, 68, 68, 0.1);
+    color: var(--red-accent);
+}
+.task-list-item .status.completed {
+    background-color: rgba(16, 185, 129, 0.1);
+    color: var(--green-accent);
 }
 
 /* --- Add Task Modal --- */
@@ -501,4 +556,50 @@ body {
     border-radius: 5px;
     font-size: 13px;
     white-space: nowrap;
+}
+/* ... (all previous CSS code) ... */
+
+/* --- AI Schedule View --- */
+.schedule-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 5px;
+    border-bottom: 1px solid var(--border-dark);
+}
+.schedule-item:last-child {
+    border-bottom: none;
+}
+
+.schedule-item-description {
+    font-weight: 500;
+}
+
+.schedule-item-time {
+    font-weight: 600;
+    color: var(--primary-color);
+    background-color: rgba(139, 92, 246, 0.1);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* New style for the notes container */
+.ai-notes-container {
+    margin-top: 20px;
+    padding: 15px;
+    background-color: rgba(139, 92, 246, 0.05);
+    border-left: 3px solid var(--primary-color);
+    border-radius: 0 8px 8px 0;
+    color: var(--text-secondary-dark);
+    font-style: italic;
+}
+.ai-notes-container p {
+    margin: 0;
+    text-align: left;
+}
+.ai-notes-container strong {
+    color: var(--primary-color);
+    font-style: normal;
 }

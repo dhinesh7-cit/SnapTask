@@ -23,7 +23,7 @@
             <nav>
                 <ul>
                     <li><a href="#" id="nav-home" class="active">Home</a></li>
-                    <li><a href="#">Tasks</a></li>
+                    <li><a href="#" id="nav-tasks">Tasks</a></li>
                     <li><a href="#" id="nav-profile">Profile</a></li>
                 </ul>
             </nav>
@@ -41,38 +41,38 @@
                 <h1 class="welcome-heading">Welcome, <span id="user-name-placeholder">User</span></h1>
                 <p class="welcome-subheading">Streamline your tasks.</p>
             </section>
-
             <section class="task-progress-widget">
                 <h2>Your Task Overview</h2>
                 <div class="stats-container">
                     <div class="stat-item">
                         <div class="stat-label">Total Tasks Initialized</div>
                         <div class="stat-value" id="total-tasks">0</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar total" style="width: 0%;"></div>
-                        </div>
+                        <div class="progress-bar-container"><div class="progress-bar total" style="width: 0%;"></div></div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Completed Tasks</div>
                         <div class="stat-value" id="completed-tasks">0</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar completed" style="width: 0%;"></div>
-                        </div>
+                        <div class="progress-bar-container"><div class="progress-bar completed" style="width: 0%;"></div></div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">Not Completed Tasks</div>
                         <div class="stat-value" id="not-completed-tasks">0</div>
-                        <div class="progress-bar-container">
-                            <div class="progress-bar not-completed" style="width: 0%;"></div>
-                        </div>
+                        <div class="progress-bar-container"><div class="progress-bar not-completed" style="width: 0%;"></div></div>
                     </div>
                 </div>
             </section>
-
             <div class="add-task-main-container">
                 <button class="btn btn-primary open-modal-btn"><i class="fas fa-plus"></i>Add Task</button>
             </div>
         </div>
+
+        <section id="tasks-section" style="display: none;">
+            <div class="tasks-container">
+                <h2>Your Tasks</h2>
+                <div id="task-list-items">
+                    </div>
+            </div>
+        </section>
 
         <section id="profile-section" style="display: none;">
             <div class="profile-header">
@@ -164,7 +164,7 @@
                 <h2>Enter Tasks Manually</h2>
                 <p>Add your tasks, priorities, and estimated durations.</p>
                 <div id="manual-task-list" class="task-list-container">
-                    </div>
+                </div>
                 <div class="add-task-row-container">
                     <button id="btn-add-manual-task" class="btn btn-primary add-task-row-btn">
                         <i class="fas fa-plus"></i> Add Another Task
@@ -189,6 +189,7 @@
                 <p>Here is an optimized schedule. You can approve and sync it to your calendar.</p>
                 <div id="ai-schedule-list" class="task-list-container">
                     </div>
+                <div id="ai-schedule-notes" class="ai-notes-container"></div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary btn-back-edit">Edit Tasks</button>
                     <button id="btn-approve-schedule" class="btn btn-primary"><i class="fas fa-check"></i> Approve & Sync</button>
@@ -217,14 +218,12 @@
             const totalTasks = data ? data.totalTasks : 0;
             const completedTasks = data ? data.completedTasks : 0;
             const notCompletedTasks = totalTasks - completedTasks;
-
             document.getElementById('total-tasks').textContent = totalTasks;
             document.getElementById('completed-tasks').textContent = completedTasks;
             document.getElementById('not-completed-tasks').textContent = notCompletedTasks;
             document.getElementById('progress-total').style.width = totalTasks > 0 ? '100%' : '0%';
             document.getElementById('progress-completed').style.width = totalTasks > 0 ? (completedTasks / totalTasks) * 100 + '%' : '0%';
             document.getElementById('progress-not-completed').style.width = totalTasks > 0 ? (notCompletedTasks / totalTasks) * 100 + '%' : '0%';
-
             document.getElementById('profile-total-tasks').textContent = totalTasks;
             document.getElementById('profile-completed-tasks').textContent = completedTasks;
             document.getElementById('profile-not-completed-tasks').textContent = notCompletedTasks;
@@ -236,21 +235,18 @@
             const homeUserName = document.getElementById('user-name-placeholder');
             const profilePicture = document.getElementById('profile-picture');
             const defaultPic = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-
             if (!userInfoStr) {
-                 profilePicture.src = defaultPic;
-                 profileUserName.textContent = 'Hey, Guest'; // Added "Hey, "
-                 homeUserName.textContent = 'Guest';
-                 return;
+                profilePicture.src = defaultPic;
+                profileUserName.textContent = 'Hey, Guest';
+                homeUserName.textContent = 'Guest';
+                return;
             }
             const userInfo = JSON.parse(userInfoStr);
             const formattedName = formatUserNameWithLastNameHighlight(userInfo.name || 'User');
-            
             profilePicture.src = userInfo.picture_url || defaultPic;
-            profileUserName.innerHTML = `Hey, ${formattedName}`; // Added "Hey, "
-            homeUserName.innerHTML = formatUserNameWithLastNameHighlight(userInfo.name || 'User'); // Kept original for "Welcome, ..."
+            profileUserName.innerHTML = `Hey, ${formattedName}`;
+            homeUserName.innerHTML = formatUserNameWithLastNameHighlight(userInfo.name || 'User');
         }
-
 
         async function fetchDashboardData() {
             const appToken = localStorage.getItem('snapTaskAppToken');
@@ -270,26 +266,28 @@
                     updateDashboardStats({ totalTasks: 0, completedTasks: 0 });
                 }
             } catch (error) {
-                console.error("Dashboard data fetch failed. Displaying stats as 0.", error);
+                console.error("Dashboard data fetch failed:", error);
                 updateDashboardStats({ totalTasks: 0, completedTasks: 0 });
             }
         }
-
+        
         // --- Navigation and Page Switching ---
         const navHome = document.getElementById('nav-home');
+        const navTasks = document.getElementById('nav-tasks');
         const navProfile = document.getElementById('nav-profile');
         const homeContent = document.getElementById('home-content');
+        const tasksSection = document.getElementById('tasks-section');
         const profileSection = document.getElementById('profile-section');
-
+        
         function showSection(sectionToShow, navLinkToActivate) {
-            gsap.to([homeContent, profileSection], {
-                autoAlpha: 0,
-                duration: 0.2,
+            const allSections = [homeContent, tasksSection, profileSection];
+            const allLinks = [navHome, navTasks, navProfile];
+
+            gsap.to(allSections, {
+                autoAlpha: 0, duration: 0.2,
                 onComplete: () => {
-                    homeContent.style.display = 'none';
-                    profileSection.style.display = 'none';
-                    navHome.classList.remove('active');
-                    navProfile.classList.remove('active');
+                    allSections.forEach(s => s.style.display = 'none');
+                    allLinks.forEach(l => l.classList.remove('active'));
 
                     sectionToShow.style.display = 'flex';
                     navLinkToActivate.classList.add('active');
@@ -297,17 +295,48 @@
                 }
             });
         }
+        
+        navHome.addEventListener('click', (e) => { e.preventDefault(); if (!navHome.classList.contains('active')) showSection(homeContent, navHome); });
+        navTasks.addEventListener('click', (e) => { e.preventDefault(); if (!navTasks.classList.contains('active')) { fetchAndDisplayTasks(); showSection(tasksSection, navTasks); } });
+        navProfile.addEventListener('click', (e) => { e.preventDefault(); if (!navProfile.classList.contains('active')) showSection(profileSection, navProfile); });
 
-        navHome.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!navHome.classList.contains('active')) showSection(homeContent, navHome);
-        });
-
-        navProfile.addEventListener('click', (e) => {
-            e.preventDefault();
-            if (!navProfile.classList.contains('active')) showSection(profileSection, navProfile);
-        });
-
+        // --- Task List Logic ---
+        async function fetchAndDisplayTasks() {
+            const appToken = localStorage.getItem('snapTaskAppToken');
+            if (!appToken) { return; }
+            const taskListContainer = document.getElementById('task-list-items');
+            taskListContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading tasks...</div>`;
+            try {
+                const response = await fetch('http://localhost:8000/tasks/', {
+                    headers: { 'Authorization': `Bearer ${appToken}` }
+                });
+                if (!response.ok) {
+                    throw new Error(`Could not fetch tasks. Server responded: ${await response.text()}`);
+                }
+                const tasks = await response.json();
+                taskListContainer.innerHTML = '';
+                if (tasks.length === 0) {
+                    taskListContainer.innerHTML = '<p class="empty-message">No tasks found. Add some from the modal!</p>';
+                    return;
+                }
+                tasks.forEach(task => {
+                    const taskItem = document.createElement('div');
+                    taskItem.className = 'task-list-item';
+                    taskItem.innerHTML = `
+                        <div class="task-list-item-details">
+                            <span class="status ${task.status}">${task.status}</span>
+                            <span class="description">${task.description}</span>
+                        </div>
+                        <div class="priority">${task.priority || 'N/A'}</div>
+                    `;
+                    taskListContainer.appendChild(taskItem);
+                });
+            } catch (error) {
+                taskListContainer.innerHTML = '<p class="empty-message">Could not load tasks. Please try again.</p>';
+                console.error("Failed to fetch tasks:", error);
+                alert("Error loading tasks. Check the console for more details.");
+            }
+        }
 
         // --- Add Task Modal Logic ---
         const addTaskModal = document.getElementById('add-task-modal');
@@ -321,187 +350,187 @@
             manualUpload: document.getElementById('modal-view-manual-upload'),
             aiSchedule: document.getElementById('modal-view-ai-schedule'),
         };
-
         let currentModalView = 'initial';
         let uploadedFile = null;
+        let lastEditorView = 'manualUpload';
 
         function showModalView(viewName) {
-            for (const key in modalViews) {
-                if(modalViews[key]) modalViews[key].style.display = 'none';
-            }
+            for (const key in modalViews) { if(modalViews[key]) modalViews[key].style.display = 'none'; }
             modalViews[viewName].style.display = 'block';
             currentModalView = viewName;
         }
 
-        openModalBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                showModalView('initial');
-                addTaskModal.classList.add('visible');
-            });
-        });
-
-        function closeModal() {
-            addTaskModal.classList.remove('visible');
-        }
-
+        openModalBtns.forEach(btn => { btn.addEventListener('click', () => { showModalView('initial'); addTaskModal.classList.add('visible'); }); });
+        function closeModal() { addTaskModal.classList.remove('visible'); }
         closeModalBtn.addEventListener('click', closeModal);
-        addTaskModal.addEventListener('click', (e) => {
-            if (e.target === addTaskModal) closeModal();
-        });
+        addTaskModal.addEventListener('click', (e) => { if (e.target === addTaskModal) closeModal(); });
 
-        document.getElementById('btn-show-photo-upload').addEventListener('click', () => showModalView('photoUpload'));
+        document.getElementById('btn-show-photo-upload').addEventListener('click', () => { lastEditorView = 'ocrResults'; showModalView('photoUpload'); });
         document.getElementById('btn-show-manual-upload').addEventListener('click', () => {
              const taskList = document.getElementById('manual-task-list');
-            if (taskList.children.length === 0) {
-                addManualTaskRow();
-            }
+            if (taskList.children.length === 0) addManualTaskRow();
+            lastEditorView = 'manualUpload';
             showModalView('manualUpload');
         });
 
         addTaskModal.querySelectorAll('.btn-back').forEach(btn => {
             btn.addEventListener('click', () => {
-                if(currentModalView === 'photoUpload' || currentModalView === 'manualUpload') {
-                    showModalView('initial');
-                } else if (currentModalView === 'ocrResults') {
-                    showModalView('photoUpload');
-                }
+                if(currentModalView === 'photoUpload' || currentModalView === 'manualUpload') showModalView('initial');
+                else if (currentModalView === 'ocrResults') showModalView('photoUpload');
             });
         });
 
-        document.querySelector('#modal-view-ai-schedule .btn-back-edit').addEventListener('click', () => {
-            // This logic needs to know which editor to go back to. For now, defaults to manual.
-            showModalView('manualUpload'); 
-        });
+        document.querySelector('#modal-view-ai-schedule .btn-back-edit').addEventListener('click', () => { showModalView(lastEditorView); });
 
-
-        // Manual Task List Logic
         function addManualTaskRow() {
             const taskList = document.getElementById('manual-task-list');
             const taskItem = document.createElement('div');
             taskItem.className = 'task-item';
-            taskItem.innerHTML = `
-                <input type="text" placeholder="Task description..." class="manual-task-description">
-                <select class="manual-task-priority">
-                    <option value="medium">Medium</option>
-                    <option value="high">High</option>
-                    <option value="low">Low</option>
-                </select>
-                <input type="number" placeholder="Mins" value="30" class="manual-task-duration" min="5" step="5">
-                <button class="remove-task-btn"><i class="fas fa-trash-alt"></i></button>
-            `;
+            taskItem.innerHTML = `<input type="text" placeholder="Task description..." class="manual-task-description"><select class="manual-task-priority"><option value="medium">Medium</option><option value="high">High</option><option value="low">Low</option></select><input type="number" placeholder="Mins" value="30" class="manual-task-duration" min="5" step="5"><button class="remove-task-btn"><i class="fas fa-trash-alt"></i></button>`;
             taskList.appendChild(taskItem);
-
-            taskItem.querySelector('.remove-task-btn').addEventListener('click', function() {
-                this.parentElement.remove();
-            });
+            taskItem.querySelector('.remove-task-btn').addEventListener('click', function() { this.parentElement.remove(); });
         }
         document.getElementById('btn-add-manual-task').addEventListener('click', addManualTaskRow);
 
-        // --- Event Listeners and Initial Load ---
+        async function handleGenerateSchedule(button, taskContainerSelector, availability) {
+            const appToken = localStorage.getItem('snapTaskAppToken');
+            if (!appToken) { alert("Authentication error. Please log in again."); return; }
+            const tasks = [];
+            const taskRows = document.querySelectorAll(`${taskContainerSelector} .task-item`);
+            taskRows.forEach(row => {
+                const description = row.querySelector('input[type="text"]').value;
+                const priority = row.querySelector('select').value;
+                const duration = row.querySelector('input[type="number"]').value;
+                if(description) tasks.push({ description: description, priority: priority, estimated_duration_minutes: parseInt(duration) || 30 });
+            });
+            if(tasks.length === 0) { alert("Please add at least one task."); return; }
+            button.disabled = true;
+            button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating...`;
+            try {
+                const response = await fetch('http://localhost:8000/process/ai/generate_schedule', {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tasks, availability }),
+                });
+                if (!response.ok) throw new Error(`Failed to generate schedule: ${await response.text()}`);
+                const scheduleData = await response.json();
+                populateAiSchedule(scheduleData);
+                showModalView('aiSchedule');
+            } catch (error) {
+                console.error("Schedule generation failed:", error);
+                alert(`An error occurred: ${error.message}`);
+            } finally {
+                button.disabled = false;
+                button.innerHTML = 'Generate Schedule';
+            }
+        }
+        
+        document.getElementById('btn-manual-generate-schedule').addEventListener('click', () => {
+            const availability = { start_time: document.getElementById('manual-availability-start').value, end_time: document.getElementById('manual-availability-end').value };
+            handleGenerateSchedule(document.getElementById('btn-manual-generate-schedule'), '#manual-task-list', availability);
+        });
+
+        function populateAiSchedule(scheduleData) {
+            const scheduleListContainer = document.getElementById('ai-schedule-list');
+            const notesContainer = document.getElementById('ai-schedule-notes');
+            
+            scheduleListContainer.innerHTML = '';
+            scheduleListContainer.dataset.scheduleId = scheduleData.schedule_id;
+            
+            const schedule = scheduleData.suggested_schedule;
+
+            if(!schedule || schedule.length === 0) {
+                scheduleListContainer.innerHTML = '<p class="empty-message">The AI could not generate a schedule. Please try adjusting your tasks or availability.</p>';
+            } else {
+                schedule.forEach(item => {
+                    const scheduleItem = document.createElement('div');
+                    scheduleItem.className = 'schedule-item';
+                    const startTime = new Date(item.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'});
+                    const endTime = new Date(item.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'});
+                    scheduleItem.innerHTML = `<span class="schedule-item-description">${item.task_description}</span><span class="schedule-item-time">${startTime} - ${endTime}</span>`;
+                    scheduleListContainer.appendChild(scheduleItem);
+                });
+            }
+
+            // Populate the new notes section
+            if (scheduleData.notes) {
+                notesContainer.innerHTML = `<p><strong>A quick note for you:</strong> ${scheduleData.notes}</p>`;
+                notesContainer.style.display = 'block';
+            } else {
+                notesContainer.style.display = 'none';
+            }
+        }
+        
+        document.getElementById('btn-approve-schedule').addEventListener('click', async () => {
+            // Placeholder for now
+            alert("Approve & Sync functionality to be implemented.");
+            closeModal();
+        });
+
+        // --- Event Listeners ---
         document.getElementById('btn-logout').addEventListener('click', () => {
             localStorage.removeItem('snapTaskAppToken');
             localStorage.removeItem('snapTaskUserInfo');
             window.location.href = 'login.html';
         });
-
         document.getElementById('btn-export-pdf').addEventListener('click', async () => {
             const appToken = localStorage.getItem('snapTaskAppToken');
-            if (!appToken) {
-                alert("Authentication error. Please log in again.");
-                return;
-            }
-            
+            if (!appToken) { alert("Authentication error."); return; }
             try {
-                // Fetch the full task list
-                const response = await fetch('http://localhost:8000/tasks/', {
-                    headers: { 'Authorization': `Bearer ${appToken}` }
-                });
-                if (!response.ok) {
-                    throw new Error('Could not fetch task list.');
-                }
+                const response = await fetch('http://localhost:8000/tasks/', { headers: { 'Authorization': `Bearer ${appToken}` } });
+                if (!response.ok) throw new Error('Could not fetch task list.');
                 const tasks = await response.json();
-
-                // Generate PDF
                 const { jsPDF } = window.jspdf;
                 const doc = new jsPDF();
-                
                 const userName = document.getElementById('profile-user-name').textContent || 'User';
                 const totalTasks = document.getElementById('profile-total-tasks').textContent;
                 const completedTasks = document.getElementById('profile-completed-tasks').textContent;
                 const notCompletedTasks = document.getElementById('profile-not-completed-tasks').textContent;
                 let yPosition = 40;
                 const pageHeight = doc.internal.pageSize.height;
-
                 doc.setFontSize(22);
                 doc.text("SnapTask Summary", 105, 20, null, null, "center");
                 doc.setFontSize(16);
                 doc.text(`Report for: ${userName}`, 20, 30);
-                
                 doc.setFontSize(12);
                 doc.text(`Total Tasks: ${totalTasks}`, 20, yPosition);
                 doc.text(`Completed: ${completedTasks}`, 20, yPosition + 7);
                 doc.text(`Pending: ${notCompletedTasks}`, 20, yPosition + 14);
-
                 yPosition += 28;
-                doc.line(20, yPosition - 5, 190, yPosition - 5); // separator line
-                
+                doc.line(20, yPosition - 5, 190, yPosition - 5);
                 doc.setFont("helvetica", "bold");
                 doc.text("Task List", 20, yPosition);
                 yPosition += 7;
                 doc.setFont("helvetica", "normal");
-
                 if (tasks.length === 0) {
                     doc.text("No tasks to display.", 20, yPosition);
                 } else {
                     tasks.forEach(task => {
-                        if (yPosition > pageHeight - 20) { // Check for page break
-                            doc.addPage();
-                            yPosition = 20;
-                        }
+                        if (yPosition > pageHeight - 20) { doc.addPage(); yPosition = 20; }
                         let statusIcon = task.status === 'completed' ? '[x]' : '[ ]';
                         doc.text(`${statusIcon} ${task.description}`, 25, yPosition);
                         yPosition += 7;
                     });
                 }
-
                 doc.save(`${userName.replace(/\s/g, '_')}_SnapTask_Report.pdf`);
-
             } catch(error) {
                 console.error("PDF Export failed:", error);
-                alert("Could not generate PDF report. Please try again.");
+                alert("Could not generate PDF report.");
             }
         });
-
         document.getElementById('btn-reset-tasks').addEventListener('click', async () => {
-            if (!confirm("Are you sure you want to delete ALL of your tasks? This action cannot be undone.")) {
-                return;
-            }
-
+            if (!confirm("Are you sure you want to delete ALL of your tasks?")) return;
             const appToken = localStorage.getItem('snapTaskAppToken');
-            if (!appToken) {
-                alert("Authentication error. Please log in again.");
-                return;
-            }
-            
+            if (!appToken) { alert("Authentication error."); return; }
             const resetButton = document.getElementById('btn-reset-tasks');
             resetButton.disabled = true;
             resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
-
             try {
-                const response = await fetch('http://localhost:8000/tasks/reset', {
-                    method: 'DELETE',
-                    headers: { 'Authorization': `Bearer ${appToken}` }
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to reset tasks. Please try again.');
-                }
-
+                const response = await fetch('http://localhost:8000/tasks/reset', { method: 'DELETE', headers: { 'Authorization': `Bearer ${appToken}` } });
+                if (!response.ok) throw new Error('Failed to reset tasks.');
                 alert('All tasks have been successfully reset.');
                 fetchDashboardData();
-
             } catch (error) {
-                console.error("Failed to reset tasks:", error);
                 alert(error.message);
             } finally {
                 resetButton.disabled = false;
@@ -509,21 +538,21 @@
             }
         });
 
-
         window.onload = function () {
             updateUserInfo();
             fetchDashboardData();
-
             gsap.set([homeContent], { autoAlpha: 1 });
-            gsap.set([profileSection], { autoAlpha: 0, display: 'none' });
-
+            gsap.set([profileSection, tasksSection], { autoAlpha: 0, display: 'none' });
             gsap.from(".header", { autoAlpha: 0, y: -30, delay: 0.2, duration: 0.6 });
-            gsap.from(homeContent.children, {
-                autoAlpha: 0, y: 25, stagger: 0.15, delay: 0.4, duration: 0.5
-            });
+            gsap.from(homeContent.children, { autoAlpha: 0, y: 25, stagger: 0.15, delay: 0.4, duration: 0.5 });
+            // TEST: Show the ai-schedule-notes div with a test note
+            var notesDiv = document.getElementById('ai-schedule-notes');
+            if (notesDiv) {
+                notesDiv.innerHTML = '<p><strong>Test Note:</strong> This is a test note to show the notes section is working.</p>';
+                notesDiv.style.display = 'block';
+            }
         };
     </script>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const canvas = document.getElementById('dynamicNightSkyCanvas');
