@@ -1,368 +1,330 @@
 # main.py
-import shutil
+import os
+import datetime
 import uuid
-from pathlib import Path
-from fastapi import FastAPI, HTTPException, Body, Depends, File, UploadFile, APIRouter
+import json
+from typing import List, Optional, Dict, Any
+
+# --- FastAPI and Related Imports ---
+import uvicorn
+from fastapi import FastAPI, Depends, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+# --- Pydantic for Data Modeling ---
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime, timedelta, timezone
-import httpx 
-import jwt 
-from google.oauth2 import id_token as google_id_token_verifier
+
+# --- Security (JWT) Imports ---
+from jose import JWTError, jwt
+
+# --- Environment and Google API Imports ---
+from dotenv import load_dotenv
+from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
-from google.cloud import vision
-from google.cloud.firestore_v1.base_query import FieldFilter
+import google.generativeai as genai
+
+# --- Firebase Admin SDK Imports ---
 import firebase_admin
-from firebase_admin import credentials, firestore as admin_firestore
-import json
-import os 
-from dotenv import load_dotenv 
+from firebase_admin import credentials, firestore
 
-# --- 0. Load Environment Variables ---
-load_dotenv() 
+# --- Debugging and Logging ---
+import traceback
 
-# --- Configuration (Fetched from Environment Variables) ---
+# ===============================================================================
+# 1. INITIAL SETUP & CONFIGURATION
+# ===============================================================================
+
+load_dotenv()
+
+# --- Environment Variables ---
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-SERVICE_ACCOUNT_KEY_PATH = os.getenv("SERVICE_ACCOUNT_KEY_PATH")
+JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+FIREBASE_SERVICE_ACCOUNT_KEY_PATH = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
 
-if not all([GOOGLE_CLIENT_ID, GEMINI_API_KEY, JWT_SECRET_KEY, SERVICE_ACCOUNT_KEY_PATH]):
-    print("ERROR: Missing critical environment variables. Check .env file.")
-
-GEMINI_API_URL_SCHEDULE = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-JWT_ALGORITHM = "HS256"
+# --- Configure Gemini AI ---
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+else:
+    print("Warning: GEMINI_API_KEY not found. AI features will be disabled.")
 
 # --- Firebase Admin SDK Initialization ---
-db = None 
-if SERVICE_ACCOUNT_KEY_PATH and not firebase_admin._apps:
-    try:
-        cred = credentials.Certificate(SERVICE_ACCOUNT_KEY_PATH)
-        firebase_admin.initialize_app(cred)
-        db = admin_firestore.client()
-        print("Firebase Admin SDK initialized successfully.")
-    except Exception as e:
-        print(f"Error initializing Firebase Admin SDK: {e}. Firestore disabled.")
+if not FIREBASE_SERVICE_ACCOUNT_KEY_PATH or not os.path.exists(FIREBASE_SERVICE_ACCOUNT_KEY_PATH):
+    raise ValueError("Firebase service account key path not found or invalid.")
+cred = credentials.Certificate(FIREBASE_SERVICE_ACCOUNT_KEY_PATH)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
-# --- Pydantic Models (ALL DEFINED TOGETHER) ---
-class UserBase(BaseModel):
+# --- FastAPI App Initialization ---
+app = FastAPI(title="SnapTask API with Firebase")
+
+# --- CORS Middleware ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Security Setup ---
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google/callback")
+
+# ===============================================================================
+# 2. PYDANTIC SCHEMAS (Data Transfer Objects)
+# ===============================================================================
+# NOTE: orm_mode is removed as we are not using an ORM anymore.
+
+# --- User Schemas ---
+class UserSchema(BaseModel):
     email: str
-    name: Optional[str] = None
+    name: str
     picture_url: Optional[str] = None
 
-class UserCreate(UserBase):
-    google_id: str
-
-class UserInDB(UserCreate):
-    created_at: datetime
-    last_login: datetime
-    settings: Optional[Dict[str, Any]] = None
-    class Config:
-        from_attributes = True
-
-class UserResponse(BaseModel):
-    id: str
-    email: str
-    name: Optional[str] = None
-    picture_url: Optional[str] = None
-
+# --- Token Schemas ---
 class GoogleToken(BaseModel):
     token: str
 
-class AppToken(BaseModel):
-    app_token: str
-    token_type: str = "bearer"
-    user_info: UserResponse
+class TokenData(BaseModel):
+    email: Optional[str] = None
 
+# --- Task Schemas ---
 class TaskBase(BaseModel):
     description: str
-    status: str = "pending"
-    priority: Optional[str] = None
-    due_date_suggestion: Optional[str] = None
-    source_image_id: Optional[str] = None
-    estimated_duration_minutes: Optional[int] = None
+    priority: str = "medium"
+    estimated_duration_minutes: int = 30
 
 class TaskCreate(TaskBase):
     pass
 
-class TaskUpdate(BaseModel):
-    description: Optional[str] = None
-    status: Optional[str] = None
-    priority: Optional[str] = None
-    due_date_suggestion: Optional[str] = None
-    scheduled_start_time: Optional[datetime] = None
-    scheduled_end_time: Optional[datetime] = None
-    calendar_event_id: Optional[str] = None
-    estimated_duration_minutes: Optional[int] = None
+class TaskSchema(TaskBase):
+    id: str # Document ID from Firestore
+    status: str
+    owner_email: str
 
-class TaskResponse(TaskBase):
-    id: str
-    user_id: str
-    created_at: datetime
-    updated_at: datetime
-    scheduled_start_time: Optional[datetime] = None
-    scheduled_end_time: Optional[datetime] = None
-    calendar_event_id: Optional[str] = None
-    class Config:
-        from_attributes = True
-
-class ImageUploadResponse(BaseModel):
-    message: str
-    image_id: str
-    file_name: str
-    content_type: str
-
-class OCRRequest(BaseModel):
-    image_id: str
-
-class OCRResponse(BaseModel):
-    image_id: str
-    extracted_text: str
-
-class TaskInputForSchedule(BaseModel):
-    description: str
-    priority: Optional[str] = "medium"
-    estimated_duration_minutes: Optional[int] = 30
-
-class AvailabilityInput(BaseModel):
+# --- AI & Schedule Schemas ---
+class Availability(BaseModel):
     start_time: str
     end_time: str
-    date: Optional[str] = None
 
-class AIScheduleRequest(BaseModel):
-    tasks: List[TaskInputForSchedule]
-    availability: AvailabilityInput
+class ScheduleRequest(BaseModel):
+    tasks: List[TaskCreate]
+    availability: Availability
 
-class AIScheduledTaskItem(BaseModel):
+class ScheduledTask(BaseModel):
     task_description: str
     start_time: str
     end_time: str
-
-class AIGeneratedSchedule(BaseModel):
-    suggested_schedule: List[AIScheduledTaskItem]
 
 class AIScheduleResponse(BaseModel):
-    suggested_schedule: List[AIScheduledTaskItem]
     schedule_id: str
+    suggested_schedule: List[ScheduledTask]
+    notes: str
 
-class CalendarSyncRequest(BaseModel):
-    schedule_id: Optional[str] = None
-    tasks_to_sync: Optional[List[AIScheduledTaskItem]] = None
+# ===============================================================================
+# 3. SECURITY & AUTHENTICATION
+# ===============================================================================
 
-class SyncedEventInfo(BaseModel):
-    task_description: str
-    calendar_event_id: str
-
-class CalendarSyncResponse(BaseModel):
-    message: str
-    synced_events: List[SyncedEventInfo]
-
-class DashboardSummaryResponse(BaseModel):
-    name: Optional[str] = "User"
-    totalTasks: int
-    completedTasks: int
-
-
-# --- App Initialization & Middleware ---
-app = FastAPI(title="SnapTask API")
-origins = [ "http://localhost", "http://127.0.0.1", "http://127.0.0.1:5500", "http://localhost:8080", "null" ]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-
-# --- Security and Authentication ---
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google/callback") 
-
-def create_app_jwt(data: dict, expires_delta: Optional[timedelta] = None):
+def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None):
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=60*24*7))
+    expire = datetime.datetime.now(datetime.timezone.utc) + (expires_delta or datetime.timedelta(days=1))
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, os.getenv("JWT_SECRET_KEY"), algorithm=JWT_ALGORITHM)
+    return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
 
-async def get_current_user(token: str = Depends(oauth2_scheme)) -> UserInDB:
-    credentials_exception = HTTPException(status_code=401, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        payload = jwt.decode(token, os.getenv("JWT_SECRET_KEY"), algorithms=[JWT_ALGORITHM])
-        google_id: Optional[str] = payload.get("sub")
-        if not google_id: raise credentials_exception
-        
-        user_ref = db.collection("users").document(google_id)
-        user_doc = user_ref.get()
-        if not user_doc.exists: raise credentials_exception
-        
-        user_data = user_doc.to_dict()
-        user_data['google_id'] = google_id
-        if 'created_at' not in user_data: user_data['created_at'] = datetime.now(timezone.utc)
-        if 'last_login' not in user_data: user_data['last_login'] = datetime.now(timezone.utc)
-        
-        return UserInDB(**user_data)
-    except (jwt.PyJWTError, ValueError):
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        email: str = payload.get("email")
+        if email is None:
+            raise credentials_exception
+    except JWTError:
         raise credentials_exception
+    
+    user_doc_ref = db.collection('users').document(email)
+    user_doc = user_doc_ref.get()
+    if not user_doc.exists:
+        raise credentials_exception
+    return user_doc.to_dict()
 
-# --- API Routers ---
-auth_router = APIRouter(prefix="/auth", tags=["Authentication"])
-tasks_router = APIRouter(prefix="/tasks", tags=["Tasks"])
-images_router = APIRouter(prefix="/images", tags=["Images"])
-processing_router = APIRouter(prefix="/process", tags=["Processing"])
-calendar_router = APIRouter(prefix="/calendar", tags=["Calendar"])
-dashboard_api_router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard API"])
+# ===============================================================================
+# 4. API ENDPOINTS
+# ===============================================================================
 
-# --- Endpoints ---
-@auth_router.post("/google/callback", response_model=AppToken)
-async def verify_google_token_and_get_app_token(token_data: GoogleToken):
-    idinfo = google_id_token_verifier.verify_oauth2_token(token_data.token, google_requests.Request(), os.getenv("GOOGLE_CLIENT_ID"))
-    google_id, email, name, picture = idinfo.get("sub"), idinfo.get("email"), idinfo.get("name"), idinfo.get("picture")
-    if not google_id or not email: raise HTTPException(status_code=400, detail="Token missing required claims")
-    user_ref = db.collection("users").document(google_id)
-    user_doc = user_ref.get()
-    user_for_response = UserResponse(id=google_id, email=email, name=name, picture_url=picture)
-    if user_doc.exists:
-        user_ref.update({"name": name, "picture_url": picture, "last_login": datetime.now(timezone.utc)})
-    else:
-        user_db_data = UserInDB(google_id=google_id, email=email, name=name, picture_url=picture, created_at=datetime.now(timezone.utc), last_login=datetime.now(timezone.utc), settings={"default_availability_start": "09:00", "default_availability_end": "17:00"}).model_dump()
-        user_ref.set(user_db_data)
-    app_jwt = create_app_jwt(data={"sub": google_id, "email": email})
-    return AppToken(app_token=app_jwt, user_info=user_for_response)
+# --- Global Exception Handler ---
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"[ERROR] Unhandled Exception: {exc}")
+    traceback.print_exc()
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {str(exc)}"}
+    )
 
-@dashboard_api_router.get("/summary", response_model=DashboardSummaryResponse)
-async def get_dashboard_summary(current_user: UserInDB = Depends(get_current_user)):
-    tasks_collection_ref = db.collection("users").document(current_user.google_id).collection("tasks")
-    total_tasks_count = sum(1 for _ in tasks_collection_ref.stream())
-    completed_tasks_query = tasks_collection_ref.where(filter=FieldFilter("status", "==", "completed"))
-    completed_tasks_count = sum(1 for _ in completed_tasks_query.stream())
-    return DashboardSummaryResponse(name=current_user.name or "User", totalTasks=total_tasks_count, completedTasks=completed_tasks_count)
+# --- Health Check Endpoint ---
+@app.get("/healthz", include_in_schema=False)
+async def health_check():
+    return {"status": "ok"}
 
-@tasks_router.post("/", response_model=TaskResponse)
-async def create_new_task(task_data: TaskCreate, current_user: UserInDB = Depends(get_current_user)):
-    user_id = current_user.google_id
-    new_task_ref = db.collection("users").document(user_id).collection("tasks").document()
-    task_id = new_task_ref.id
-    current_time = datetime.now(timezone.utc)
-    task_doc_data = TaskResponse(id=task_id, user_id=user_id, created_at=current_time, updated_at=current_time, **task_data.model_dump())
-    new_task_ref.set(task_doc_data.model_dump())
-    return task_doc_data
-
-@tasks_router.get("/", response_model=List[TaskResponse])
-async def get_all_tasks(current_user: UserInDB = Depends(get_current_user)):
-    user_id = current_user.google_id
-    tasks_stream = db.collection("users").document(user_id).collection("tasks").order_by("created_at", direction=admin_firestore.Query.DESCENDING).stream()
-    return [TaskResponse(id=doc.id, user_id=user_id, **doc.to_dict()) for doc in tasks_stream]
-
-@tasks_router.delete("/reset", status_code=204)
-async def reset_all_user_tasks(current_user: UserInDB = Depends(get_current_user)):
-    if not db:
-        raise HTTPException(status_code=503, detail="DB unavailable")
-    user_id = current_user.google_id
-    tasks_ref = db.collection("users").document(user_id).collection("tasks")
-    while True:
-        docs = tasks_ref.limit(50).stream()
-        num_deleted = 0
-        batch = db.batch()
-        for doc in docs:
-            batch.delete(doc.reference)
-            num_deleted += 1
-        if num_deleted == 0:
-            break
-        batch.commit()
-    print(f"Reset all tasks for user {user_id}")
-    return {}
-
-@images_router.post("/upload", response_model=ImageUploadResponse)
-async def upload_image_file_endpoint(image_file: UploadFile = File(...), current_user: UserInDB = Depends(get_current_user)):
-    UPLOAD_DIR = Path("temp_uploaded_images")
-    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    allowed_ct = ["image/jpeg", "image/png", "image/webp"]
-    if image_file.content_type not in allowed_ct: raise HTTPException(status_code=400, detail=f"Invalid image type: {image_file.content_type}.")
-    ext = os.path.splitext(image_file.filename)[1] or ".jpg"
-    img_id = str(uuid.uuid4())
-    local_path = UPLOAD_DIR / f"{current_user.google_id}_{img_id}{ext}"
+# --- Authentication Endpoint ---
+@app.post("/auth/google/callback", tags=["Authentication"])
+async def google_auth_callback(google_token: GoogleToken):
+    print("[DEBUG] /auth/google/callback called")
     try:
-        contents = await image_file.read()
-        with open(local_path, "wb") as f_obj: f_obj.write(contents)
-        img_meta_ref = db.collection("users").document(current_user.google_id).collection("images").document(img_id)
-        img_meta_ref.set({"image_id": img_id, "user_id": current_user.google_id, "file_name": image_file.filename, "content_type": image_file.content_type, "uploaded_at": datetime.now(timezone.utc), "storage_path": str(local_path)})
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An internal error occurred during upload: {e}")
-    finally:
-        await image_file.close()
-    return ImageUploadResponse(message="Image uploaded", image_id=img_id, file_name=image_file.filename, content_type=image_file.content_type)
-
-@processing_router.post("/ai/generate_schedule", response_model=AIScheduleResponse)
-async def ai_generate_schedule_endpoint(req_data: AIScheduleRequest, current_user: UserInDB = Depends(get_current_user)):
-    if not GEMINI_API_KEY: raise HTTPException(status_code=500, detail="Gemini API Key not configured")
-    tasks_str_list = [f"- Description: {t.description}, Priority: {t.priority}, Duration: {t.estimated_duration_minutes} mins" for t in req_data.tasks]
-    tasks_prompt_part = "\n".join(tasks_str_list)
-    availability_prompt_part = f"User is available from {req_data.availability.start_time} to {req_data.availability.end_time} on {req_data.availability.date or 'today'}."
-    
-    # Updated prompt to ask for notes
-    scheduling_prompt = f"""Given tasks:\n{tasks_prompt_part}\nAnd availability:\n{availability_prompt_part}\nCreate an optimized schedule. Also, provide a brief, helpful, and motivational "notes" string related to the schedule. Return a single JSON object with two keys: "suggested_schedule" (an array of objects) and "notes" (a string). Ensure times are ISO 8601, within availability, and consider task durations and priorities. JSON Output:"""
-    
-    # Updated schema to include the new "notes" field
-    item_schema = AIScheduledTaskItem.model_json_schema()
-    final_schema = {
-        "type": "object",
-        "properties": { 
-            "suggested_schedule": { "type": "array", "items": item_schema },
-            "notes": { "type": "string" }
+        if not GOOGLE_CLIENT_ID:
+            print("[ERROR] GOOGLE_CLIENT_ID is missing")
+            raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID is not set on the backend.")
+        print(f"[DEBUG] Received token: {google_token.token[:20]}...")
+        idinfo = google_id_token.verify_oauth2_token(
+            google_token.token, google_requests.Request(), GOOGLE_CLIENT_ID
+        )
+        print(f"[DEBUG] Google ID token verified: {idinfo}")
+        email = idinfo['email']
+        user_doc_ref = db.collection('users').document(email)
+        user_doc = user_doc_ref.get()
+        if not user_doc.exists:
+            user_data = {
+                "email": email,
+                "name": idinfo.get('name', 'New User'),
+                "picture_url": idinfo.get('picture'),
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+            user_doc_ref.set(user_data)
+            print(f"[DEBUG] New user created: {user_data}")
+        app_token = create_access_token(data={"email": email})
+        print(f"[DEBUG] App token created for {email}")
+        return {
+            "app_token": app_token,
+            "user_info": {
+                "name": idinfo.get('name'),
+                "email": email,
+                "picture_url": idinfo.get('picture')
+            }
         }
-    }
-    payload = {
-        "contents": [{"parts": [{"text": scheduling_prompt}]}],
-        "generationConfig": { "responseMimeType": "application/json", "responseSchema": final_schema }
-    }
-    
-    try:
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            resp = await client.post(GEMINI_API_URL_SCHEDULE, json=payload)
-            resp.raise_for_status()
-        result = resp.json()
-        
-        if (result.get("candidates") and result["candidates"][0].get("content")):
-            json_text = result["candidates"][0]["content"]["parts"][0]["text"]
-            parsed_json = json.loads(json_text)
-            schedule_items_data = parsed_json.get("suggested_schedule", [])
-            ai_notes = parsed_json.get("notes") # Get the notes from the response
-            valid_schedule_items = [AIScheduledTaskItem(**item) for item in schedule_items_data]
-            
-            for task_input in req_data.tasks:
-                task_to_save = TaskCreate(
-                    description=task_input.description,
-                    priority=task_input.priority,
-                    estimated_duration_minutes=task_input.estimated_duration_minutes,
-                    status="pending"
-                )
-                await create_new_task(task_data=task_to_save, current_user=current_user)
-
-            sched_id = str(uuid.uuid4())
-            if db:
-                db.collection("users").document(current_user.google_id).collection("schedules").document(sched_id).set({
-                    "user_id": current_user.google_id, "tasks_input": [t.model_dump() for t in req_data.tasks],
-                    "availability_input": req_data.availability.model_dump(),
-                    "suggested_schedule_output": [s.model_dump() for s in valid_schedule_items],
-                    "notes": ai_notes, # Save notes to the schedule document
-                    "created_at": datetime.now(timezone.utc), "status": "suggested"
-                })
-            return AIScheduleResponse(suggested_schedule=valid_schedule_items, schedule_id=sched_id, notes=ai_notes)
-        else:
-            raise HTTPException(status_code=500, detail="AI model did not return valid content.")
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=f"Gemini Schedule API error: {e.response.text}")
+    except ValueError as e:
+        print(f"[ERROR] Invalid Google token: {e}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid Google token: {e}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An error occurred during schedule generation: {e}")
+        print(f"[ERROR] Exception in /auth/google/callback: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
-# --- Include Routers ---
-app.include_router(auth_router)
-app.include_router(tasks_router)
-app.include_router(images_router)
-app.include_router(processing_router)
-app.include_router(calendar_router)
-app.include_router(dashboard_api_router)
+# --- Dashboard Endpoint ---
+@app.get("/api/v1/dashboard/summary", tags=["Dashboard"])
+async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    tasks_ref = db.collection('tasks').where('owner_email', '==', user_email).stream()
+    
+    total_tasks = 0
+    completed_tasks = 0
+    for task in tasks_ref:
+        total_tasks += 1
+        if task.to_dict().get('status') == 'completed':
+            completed_tasks += 1
+    
+    return {"totalTasks": total_tasks, "completedTasks": completed_tasks}
 
-@app.get("/")
-async def root_endpoint(): return {"message": "Welcome to SnapTask API!"}
+# --- Tasks Endpoints ---
+@app.get("/tasks/", response_model=List[TaskSchema], tags=["Tasks"])
+async def read_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    tasks_stream = db.collection('tasks').where('owner_email', '==', user_email).stream()
+    
+    tasks_list = []
+    for task in tasks_stream:
+        task_data = task.to_dict()
+        task_data['id'] = task.id # Add the document ID to the data
+        tasks_list.append(task_data)
+        
+    return tasks_list
+
+@app.delete("/tasks/reset", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
+async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    tasks_query = db.collection('tasks').where('owner_email', '==', user_email)
+    tasks_docs = tasks_query.stream()
+
+    batch = db.batch()
+    doc_count = 0
+    for doc in tasks_docs:
+        batch.delete(doc.reference)
+        doc_count += 1
+    
+    if doc_count > 0:
+        batch.commit()
+    
+    return {"message": f"{doc_count} tasks have been reset."}
+    
+# --- AI Processing Endpoint ---
+@app.post("/process/ai/generate_schedule", response_model=AIScheduleResponse, tags=["AI Processing"])
+async def generate_ai_schedule(
+    schedule_request: ScheduleRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    if not GEMINI_API_KEY or not genai:
+        raise HTTPException(status_code=503, detail="AI Service is not configured or available.")
+
+    try:
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"""
+        As an expert scheduler, create a schedule based on the provided JSON data. Today is {datetime.date.today().isoformat()}.
+        Constraints: Available from {schedule_request.availability.start_time} to {schedule_request.availability.end_time}. If there are high priority tasks, schedule them first. If there are no high priority tasks, schedule medium and low priority tasks as best as possible. Add breaks if time allows. Do not skip tasks just because they are not high priority.
+        Input Tasks: {json.dumps([task.dict() for task in schedule_request.tasks])}
+        Provide the output as a single, valid JSON object with keys \"suggested_schedule\" (array of objects with \"task_description\", \"start_time\", \"end_time\" in ISO 8601 format) and \"notes\" (a brief message).
+        """
+        response = await model.generate_content_async(prompt)
+        cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
+        ai_data = json.loads(cleaned_response_text)
+        
+        # Use a batch to save all new tasks to Firestore
+        batch = db.batch()
+        tasks_collection_ref = db.collection('tasks')
+        
+        for scheduled_item in ai_data.get("suggested_schedule", []):
+            task_doc_ref = tasks_collection_ref.document() # Auto-generate ID
+            batch.set(task_doc_ref, {
+                "description": scheduled_item["task_description"],
+                "status": "pending",
+                "priority": "medium", # Default priority, can be improved
+                "owner_email": current_user['email'],
+                "created_at": firestore.SERVER_TIMESTAMP
+            })
+        batch.commit()
+
+        return AIScheduleResponse(
+            schedule_id=str(uuid.uuid4()),
+            suggested_schedule=ai_data.get("suggested_schedule", []),
+            notes=ai_data.get("notes", "Schedule generated.")
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate AI schedule: {e}")
+
+# --- Static File Serving ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/", include_in_schema=False)
+async def read_root():
+    return FileResponse('static/login.html')
+
+@app.get("/{page_name}.html", include_in_schema=False)
+async def read_page(page_name: str):
+    file_path = f'static/{page_name}.html'
+    if os.path.exists(file_path):
+        return FileResponse(file_path)
+    raise HTTPException(status_code=404, detail="Page not found")
+
+# --- Main entry point to run the app ---
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
