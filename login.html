@@ -197,9 +197,17 @@
             if (!messageDiv) {
                 messageDiv = document.createElement('div');
                 messageDiv.className = 'signin-message'; 
+                // Force the message to be visible and on top
+                messageDiv.style.position = 'fixed';
+                messageDiv.style.top = '30px';
+                messageDiv.style.left = '50%';
+                messageDiv.style.transform = 'translateX(-50%)';
+                messageDiv.style.zIndex = '9999';
+                messageDiv.style.visibility = 'visible';
                 container.appendChild(messageDiv);
             }
             messageDiv.textContent = text;
+            messageDiv.style.visibility = 'visible'; // Ensure message is always visible
             if (type === 'success') {
                 messageDiv.classList.remove('error');
                 messageDiv.classList.add('success');
@@ -233,13 +241,13 @@
                 if (data.app_token && data.user_info) {
                     localStorage.setItem('snapTaskAppToken', data.app_token);
                     localStorage.setItem('snapTaskUserInfo', JSON.stringify(data.user_info)); 
-                    
                     displayMessage(`Login successful! Welcome, ${data.user_info.name || data.user_info.email}. Redirecting...`, 'success');
-                    
+                    console.log('Redirecting to index.html...');
                     setTimeout(() => {
                         window.location.href = 'index.html'; 
                     }, 1500); 
                 } else {
+                    console.error('App token or user info missing in backend response:', data);
                     throw new Error("App token or user info missing in backend response.");
                 }
             })
