@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+python-jose[cryptography]
+passlib[bcrypt]
+google-auth
+google-generativeai
+firebase-admin
+google-api-python-client
+google-auth-oauthlib
+pypdf
+python-docx
+openpyxl
+apscheduler
+pywebpush
