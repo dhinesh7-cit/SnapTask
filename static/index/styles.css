@@ -1,0 +1,144 @@
+html, body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    height: 100%; 
+    overflow: hidden; 
+}
+body {
+    font-family: 'Inter', "Inter Placeholder", sans-serif;
+    color: #ffffff; 
+    display: flex;
+    align-items: center; 
+    justify-content: center; 
+    min-height: 100vh;
+    padding: 0 20px; 
+}
+
+#background-video {
+    position: fixed;
+    top: 50%; 
+    left: 50%; 
+    transform: translate(-50%, -50%); 
+    min-width: 100%; 
+    min-height: 100%;
+    width: auto;
+    height: auto;
+    z-index: -100; 
+    object-fit: cover; 
+    background-color: #1a1a1a; 
+}
+
+.page-container { 
+    position: relative; 
+    z-index: 1; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; 
+    gap: 40px; 
+    width: 100%;
+    max-width: 1002px; 
+    text-align: center;
+    padding: 20px; 
+}
+
+.website-logo-container,
+.main-heading,
+.sub-heading,
+.google-button-wrapper {
+    visibility: hidden; 
+}
+
+.website-logo-container { 
+    width: 80px; 
+    height: auto; 
+    margin-bottom: -20px; 
+}
+.website-logo-container img {
+    display: block;
+    width: 100%;
+    height: auto; 
+    object-fit: contain;
+    filter: invert(1); 
+}
+.headings-container { 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px; 
+    width: 100%;
+}
+.main-heading { 
+    font-family: 'Inter', "Inter Placeholder", sans-serif;
+    font-size: 60px;
+    font-weight: 700; 
+    letter-spacing: -0.04em;
+    line-height: 1em;
+    text-align: center;
+    color: #ffffff; 
+    text-shadow: 0px 0px 8px rgba(0,0,0,0.7); 
+    margin: 0; 
+}
+.main-heading .logo-task-highlight {
+    color: #8B5CF6;
+}
+.sub-heading { 
+    font-family: 'Inter', "Inter Placeholder", sans-serif;
+    font-size: 60px; 
+    font-weight: 700; 
+    letter-spacing: -0.04em;
+    line-height: 1em; 
+    text-align: center;
+    color: rgba(220, 220, 220, 0.9); 
+    text-shadow: 0px 0px 6px rgba(0,0,0,0.7); 
+    margin: 0;
+}
+
+.google-button-wrapper { 
+    width: 280px; 
+    height: 40px; 
+    display: flex; 
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px; 
+    background-color: rgb(255,255,255); 
+    border: 1px solid rgba(0, 0, 0, 0.1); 
+    transition: background-color 0.2s ease-in-out, transform 0.2s ease-in-out;
+    overflow: hidden; 
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05); 
+    margin-top: -40px; 
+}
+.google-button-wrapper:hover {
+    background-color: rgb(245, 245, 245); 
+    transform: translateY(-2px); 
+}
+    
+.g_id_signin > div { 
+    border-radius: 20px !important; 
+    font-weight: 700 !important;
+}
+.signin-message { 
+    margin-top: 20px;
+    padding: 12px 15px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    max-width: 400px; 
+    word-wrap: break-word;
+}
+.signin-message.success {
+    border: 1px solid #4CAF50;
+    background-color: rgba(232, 245, 233, 0.95); 
+    color: #2e7d32;
+}
+.signin-message.error {
+    border: 1px solid #f44336;
+    background-color: rgba(255, 235, 238, 0.95);
+    color: #c62828;
+}
