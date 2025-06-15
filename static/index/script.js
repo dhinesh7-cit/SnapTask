@@ -71,3 +71,11 @@ window.onload = function () {
       .from(".sub-heading", { autoAlpha: 0, y: 30, scale: 0.95 }, "-=0.7")
       .from(".google-button-wrapper", { autoAlpha: 0, y: 30, scale: 0.95 }, "-=0.7");
 };
+window.addEventListener("load", () => {
+    const video = document.getElementById("background-video");
+    const source = video.querySelector("source");
+    if (source.dataset.src) {
+      source.src = source.dataset.src;
+      video.load();
+    }
+  });
