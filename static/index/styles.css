@@ -28,7 +28,7 @@ body {
     height: auto;
     z-index: -100; 
     object-fit: cover; 
-    background-color: #1a1a1a; 
+    background-color: #000000; 
 }
 
 .page-container { 
