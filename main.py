@@ -588,8 +588,7 @@ async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_curre
             completed_tasks += 1
     return {"totalTasks": total_tasks, "completedTasks": completed_tasks}
 
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/", StaticFiles(directory="static", html=True), name="static-root")
 
 
 @app.get("/", include_in_schema=False)
