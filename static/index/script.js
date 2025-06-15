@@ -25,7 +25,7 @@ function displayMessage(text, type = 'success') {
 
 function handleCredentialResponse(response) {
     console.log("Encoded JWT ID token: " + response.credential);
-    const backendUrl = 'http://localhost:8000/auth/google/callback'; 
+    const backendUrl = 'https://snaptask-o7ae.onrender.com/auth/google/callback'; 
 
     fetch(backendUrl, {
         method: 'POST',
