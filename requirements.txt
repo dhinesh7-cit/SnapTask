@@ -13,3 +13,4 @@ python-docx
 openpyxl
 apscheduler
 pywebpush
+python-multipart
