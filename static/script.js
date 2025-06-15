@@ -1,3 +1,5 @@
+const API_BASE_URL = 'http://localhost:8000';
+
 let aiGeneratedSchedule = [];
 let uploadedFile = null;
 
@@ -82,7 +84,7 @@ async function fetchDashboardData() {
         return;
     }
     try {
-        const response = await fetch('http://localhost:8000/api/v1/dashboard/summary', {
+        const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/summary`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${appToken}` }
         });
@@ -132,7 +134,7 @@ async function fetchAndDisplayTasks() {
     const taskListContainer = document.getElementById('task-list-items');
     taskListContainer.innerHTML = `<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i> Loading tasks...</div>`;
     try {
-        const response = await fetch('http://localhost:8000/tasks/', {
+        const response = await fetch(`${API_BASE_URL}/tasks/`, {
             headers: { 'Authorization': `Bearer ${appToken}` }
         });
         if (!response.ok) {
@@ -179,6 +181,7 @@ async function fetchAndDisplayTasks() {
                 <td>${formatTime(task.start_time)}</td>
                 <td>${formatTime(task.end_time)}</td>
                 <td class="actions-cell">
+                    <button class="btn-task-breakdown" title="Breakdown Task"><i class="fas fa-tasks"></i></button>
                     <button class="btn-task-complete" ${isCompleted ? 'disabled' : ''} title="Mark as Complete"><i class="fas fa-check"></i></button>
                     <button class="btn-task-delete" title="Delete Task"><i class="fas fa-trash-alt"></i></button>
                 </td>
@@ -196,6 +199,37 @@ async function fetchAndDisplayTasks() {
 document.getElementById('task-list-items').addEventListener('click', async (e) => {
     const appToken = localStorage.getItem('snapTaskAppToken');
     
+    const breakdownButton = e.target.closest('.btn-task-breakdown');
+    if (breakdownButton) {
+        e.stopPropagation();
+        const taskRow = breakdownButton.closest('tr');
+        document.querySelectorAll('tr[data-taskid]').forEach(row => row.classList.remove('breakdown-active'));
+        taskRow.classList.add('breakdown-active');
+        window.lastBreakdownTaskRow = taskRow;
+
+        breakdownButton.disabled = true;
+        breakdownButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
+        
+        try {
+            const response = await fetch(`${API_BASE_URL}/tasks/${taskRow.dataset.taskId}/breakdown`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${appToken}` }
+            });
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to get breakdown.');
+            }
+            const data = await response.json();
+            populateAiBreakdownModal(data.subtasks);
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        } finally {
+            breakdownButton.disabled = false;
+            breakdownButton.innerHTML = `<i class="fas fa-tasks"></i>`;
+        }
+        return;
+    }
+
     const sortHeader = e.target.closest('th[data-sort]');
     if (sortHeader) {
         const sortKey = sortHeader.dataset.sort;
@@ -212,7 +246,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
 
             if (sortKey === 'start_time' || sortKey === 'end_time') {
                 const parseTime = (timeStr) => {
-                    if (!timeStr || timeStr === 'N/A') return 0;
+                    if (!timeStr || timeStr === 'N/A') return newOrder === 'asc' ? Infinity : -Infinity;
                     const match = timeStr.match(/(\d{1,2}):(\d{2})\s?(AM|PM)/i);
                     if (match) {
                         let hour = parseInt(match[1], 10);
@@ -222,11 +256,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
                         if (ampm === 'AM' && hour === 12) hour = 0;
                         return hour * 60 + minute;
                     }
-                    const match24 = timeStr.match(/(\d{1,2}):(\d{2})/);
-                    if (match24) {
-                        return parseInt(match24[1], 10) * 60 + parseInt(match24[2], 10);
-                    }
-                    return 0;
+                    return newOrder === 'asc' ? Infinity : -Infinity;
                 };
                 valA = parseTime(rowA.cells[sortKey === 'start_time' ? 3 : 4].textContent.trim());
                 valB = parseTime(rowB.cells[sortKey === 'start_time' ? 3 : 4].textContent.trim());
@@ -237,7 +267,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
             } else if (sortKey === 'status') {
                 valA = rowA.querySelector('.status').textContent.trim();
                 valB = rowB.querySelector('.status').textContent.trim();
-            } else {
+            } else { 
                 valA = rowA.querySelector('.description-cell').textContent.trim().toLowerCase();
                 valB = rowB.querySelector('.description-cell').textContent.trim().toLowerCase();
             }
@@ -271,7 +301,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
         completeButton.disabled = true;
         completeButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
         try {
-            const response = await fetch(`http://localhost:8000/tasks/${taskId}/complete`, {
+            const response = await fetch(`${API_BASE_URL}/tasks/${taskId}/complete`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${appToken}` }
             });
@@ -295,7 +325,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
         deleteButton.disabled = true;
         deleteButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i>`;
         try {
-            const response = await fetch(`http://localhost:8000/tasks/${taskId}`, {
+            const response = await fetch(`${API_BASE_URL}/tasks/${taskId}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${appToken}` }
             });
@@ -315,7 +345,7 @@ document.getElementById('task-list-items').addEventListener('click', async (e) =
 const addTaskModal = document.getElementById('add-task-modal');
 const openModalBtns = document.querySelectorAll('.open-modal-btn');
 const closeModalBtn = addTaskModal.querySelector('.modal-close-btn');
-    
+
 const modalViews = {
     initial: document.getElementById('modal-view-initial'),
     fileUpload: document.getElementById('modal-view-file-upload'),
@@ -331,7 +361,7 @@ function showModalView(viewName) {
     if(modalViews[viewName]) modalViews[viewName].style.display = 'block';
     currentModalView = viewName;
 }
-    
+
 openModalBtns.forEach(btn => btn.addEventListener('click', () => { 
     resetFileUpload();
     showModalView('initial'); 
@@ -342,8 +372,12 @@ closeModalBtn.addEventListener('click', closeModal);
 addTaskModal.addEventListener('click', (e) => { if (e.target === addTaskModal) closeModal(); });
 
 document.getElementById('btn-show-file-upload').addEventListener('click', () => { 
-    lastEditorView = 'ocrResults'; 
-    showModalView('fileUpload'); 
+     lastEditorView = 'ocrResults'; 
+     const availabilityContainer = document.querySelector('#ocr-availability-section .availability-rows-container');
+     if (availabilityContainer.children.length === 0) {
+         availabilityContainer.appendChild(createAvailabilityRow());
+     }
+     showModalView('fileUpload'); 
 });
 document.getElementById('btn-show-manual-upload').addEventListener('click', () => {
     const taskList = document.getElementById('manual-task-list');
@@ -430,7 +464,7 @@ extractTextBtn.addEventListener('click', async () => {
     formData.append('file', uploadedFile);
 
     try {
-        const response = await fetch('http://localhost:8000/process/file/extract_tasks', {
+        const response = await fetch(`${API_BASE_URL}/process/file/extract_tasks`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${appToken}` },
             body: formData,
@@ -453,7 +487,7 @@ extractTextBtn.addEventListener('click', async () => {
         extractTextBtn.innerHTML = 'Extract Tasks';
     }
 });
-    
+
 function createAvailabilityRow() {
     const row = document.createElement('div');
     row.className = 'availability-row';
@@ -468,7 +502,7 @@ function createAvailabilityRow() {
     row.querySelector('.remove-availability-btn').addEventListener('click', () => row.remove());
     return row;
 }
-    
+
 document.querySelectorAll('.btn-add-availability').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const container = e.target.closest('.availability-section').querySelector('.availability-rows-container');
@@ -476,19 +510,29 @@ document.querySelectorAll('.btn-add-availability').forEach(btn => {
     });
 });
 
-function createTaskItemRow(taskText = "") {
+function createTaskItemRow(taskObj = "") {
+    let description = "";
+    let priority = "medium";
+    let duration = 30;
+    if (typeof taskObj === "object" && taskObj !== null) {
+        description = taskObj.description || "";
+        priority = taskObj.priority || "medium";
+        duration = taskObj.estimated_duration_minutes || 30;
+    } else {
+        description = taskObj;
+    }
     const taskItem = document.createElement('div');
     taskItem.className = 'task-item';
     taskItem.innerHTML = `
-        <input type="text" placeholder="Task description..." class="manual-task-description" value="${taskText}">
+        <input type="text" placeholder="Task description..." class="manual-task-description" value="${description}">
         <select class="manual-task-priority">
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="low">Low</option>
+            <option value="medium" ${priority === "medium" ? "selected" : ""}>Medium</option>
+            <option value="high" ${priority === "high" ? "selected" : ""}>High</option>
+            <option value="low" ${priority === "low" ? "selected" : ""}>Low</option>
         </select>
-        <input type="number" placeholder="Mins" value="30" class="manual-task-duration" min="5" step="5">
+        <input type="number" placeholder="Mins" value="${duration}" class="manual-task-duration" min="5" step="5">
         <label class="daily-routine-label">
-            <input type="checkbox" class="daily-routine-checkbox"> Daily Routine
+            <input type="checkbox" class="daily-routine-checkbox"> Daily
         </label>
         <button class="remove-task-btn"><i class="fas fa-trash-alt"></i></button>
     `;
@@ -504,16 +548,15 @@ function populateOcrResults(tasks) {
         ocrListContainer.innerHTML = '<p class="empty-message">Could not detect any tasks in the image.</p>';
         return;
     }
-    tasks.forEach(taskText => {
-        ocrListContainer.appendChild(createTaskItemRow(taskText));
+    tasks.forEach(taskObj => {
+        ocrListContainer.appendChild(createTaskItemRow(taskObj));
     });
-    
     const availabilityContainer = document.querySelector('#ocr-availability-section .availability-rows-container');
     if (availabilityContainer.children.length === 0) {
         availabilityContainer.appendChild(createAvailabilityRow());
     }
 }
-    
+
 document.getElementById('btn-ocr-generate-schedule').addEventListener('click', (e) => {
     handleGenerateSchedule(e.currentTarget, '#ocr-task-list', '#ocr-availability-section');
 });
@@ -560,7 +603,7 @@ async function handleGenerateSchedule(button, taskContainerSelector, availabilit
     button.disabled = true;
     button.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating...`;
     try {
-        const response = await fetch('http://localhost:8000/process/ai/generate_schedule', {
+        const response = await fetch(`${API_BASE_URL}/process/ai/generate_schedule`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${appToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ tasks, availability }),
@@ -577,7 +620,7 @@ async function handleGenerateSchedule(button, taskContainerSelector, availabilit
         button.innerHTML = 'Generate Schedule';
     }
 }
-    
+
 document.getElementById('btn-manual-generate-schedule').addEventListener('click', (e) => {
     handleGenerateSchedule(e.currentTarget, '#manual-task-list', '#manual-availability-section');
 });
@@ -595,7 +638,7 @@ function populateAiSchedule(scheduleData) {
         scheduleListContainer.innerHTML = '<p class="empty-message">The AI could not generate a schedule. Please try adjusting your tasks or availability.</p>';
         document.getElementById('btn-approve-schedule').style.display = 'none';
     } else {
-        document.getElementById('btn-approve-schedule').style.display = 'inline-flex';
+         document.getElementById('btn-approve-schedule').style.display = 'inline-flex';
         aiGeneratedSchedule.forEach(item => {
             const scheduleItem = document.createElement('div');
             scheduleItem.className = 'schedule-item';
@@ -613,7 +656,85 @@ function populateAiSchedule(scheduleData) {
         notesContainer.style.display = 'none';
     }
 }
-    
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+        outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+}
+
+async function registerServiceWorkerAndSubscribe() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        alert('Sorry, push notifications are not supported by your browser.');
+        return;
+    }
+
+    try {
+        const swRegistration = await navigator.serviceWorker.register('/sw.js');
+        console.log('Service Worker registered:', swRegistration);
+
+        let permission = Notification.permission;
+        if (permission === 'default') {
+            permission = await Notification.requestPermission();
+        }
+
+        if (permission !== 'granted') {
+            alert('Notification permission was not granted.');
+            return;
+        }
+
+        let subscription = await swRegistration.pushManager.getSubscription();
+        if (subscription === null) {
+            const response = await fetch(`${API_BASE_URL}/vapid_public_key`, {
+                 headers: { 'Authorization': `Bearer ${localStorage.getItem('snapTaskAppToken')}` }
+            });
+            const data = await response.json();
+            const vapidPublicKey = data.public_key;
+            
+            if (!vapidPublicKey) {
+                alert('Could not retrieve VAPID key from server.');
+                return;
+            }
+            
+            const convertedVapidKey = urlBase64ToUint8Array(vapidPublicKey);
+
+            subscription = await swRegistration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: convertedVapidKey
+            });
+        }
+        
+        const appToken = localStorage.getItem('snapTaskAppToken');
+        await fetch(`${API_BASE_URL}/push/subscribe`, {
+            method: 'POST',
+            body: JSON.stringify(subscription),
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${appToken}`
+            }
+        });
+
+        alert('Notifications enabled successfully!');
+        const enableBtn = document.getElementById('btn-enable-notifications');
+        enableBtn.disabled = true;
+        enableBtn.innerHTML = '<i class="fas fa-check"></i> Enabled';
+
+    } catch (error) {
+        console.error('Failed to subscribe to push notifications:', error);
+        alert('Failed to enable notifications. See console for details.');
+    }
+}
+
+const enableBtn = document.getElementById('btn-enable-notifications');
+if (enableBtn) {
+    enableBtn.addEventListener('click', registerServiceWorkerAndSubscribe);
+}
+
 document.getElementById('btn-approve-schedule').addEventListener('click', async (e) => {
     const approveButton = e.currentTarget;
     approveButton.disabled = true;
@@ -628,7 +749,7 @@ document.getElementById('btn-approve-schedule').addEventListener('click', async 
     }
 
     try {
-        const syncResponse = await fetch('http://localhost:8000/api/v1/calendar/sync', {
+        const syncResponse = await fetch(`${API_BASE_URL}/api/v1/calendar/sync`, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${appToken}`,
@@ -642,7 +763,8 @@ document.getElementById('btn-approve-schedule').addEventListener('click', async 
             throw new Error(error.detail || 'Failed to save schedule.');
         }
         
-        alert('Schedule successfully saved!');
+        const data = await syncResponse.json();
+        alert(data.message);
         closeModal();
         fetchDashboardData();
         fetchAndDisplayTasks();
@@ -665,58 +787,130 @@ document.getElementById('btn-logout').addEventListener('click', () => {
 document.getElementById('btn-export-pdf').addEventListener('click', async () => {
     const appToken = localStorage.getItem('snapTaskAppToken');
     if (!appToken) { alert("Authentication error."); return; }
-    
     const exportButton = document.getElementById('btn-export-pdf');
     const originalContent = exportButton.innerHTML;
     exportButton.disabled = true;
     exportButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Generating...`;
-
     try {
-        const response = await fetch('http://localhost:8000/tasks/', { headers: { 'Authorization': `Bearer ${appToken}` } });
+        const response = await fetch(`${API_BASE_URL}/tasks/`, { headers: { 'Authorization': `Bearer ${appToken}` } });
         if (!response.ok) throw new Error('Could not fetch task list.');
         const tasks = await response.json();
-        
         await new Promise(resolve => setTimeout(resolve, 50));
-
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         const userName = JSON.parse(localStorage.getItem('snapTaskUserInfo')).name || 'User';
-        const totalTasks = document.getElementById('profile-total-tasks').textContent;
-        const completedTasks = document.getElementById('profile-completed-tasks').textContent;
-        const notCompletedTasks = document.getElementById('profile-not-completed-tasks').textContent;
-        let yPosition = 40;
+        doc.setFont('helvetica', 'bold');
         doc.setFontSize(22);
-        doc.text("SnapTask Summary", 105, 20, null, null, "center");
-        doc.setFontSize(16);
-        doc.text(`Report for: ${userName}`, 20, 30);
-        doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 20, 35);
-        doc.setFontSize(12);
-        doc.text(`Total Tasks: ${totalTasks}`, 20, yPosition + 5);
-        doc.text(`Completed: ${completedTasks}`, 20, yPosition + 12);
-        doc.text(`Pending: ${notCompletedTasks}`, 20, yPosition + 19);
-        yPosition += 33;
-        doc.line(20, yPosition - 5, 190, yPosition - 5);
-        doc.setFont("helvetica", "bold");
-        doc.text("Task List", 20, yPosition);
-        yPosition += 7;
-        doc.setFont("helvetica", "normal");
-        tasks.forEach(task => {
-            if (yPosition > doc.internal.pageSize.height - 20) { doc.addPage(); yPosition = 20; }
-            let statusIcon = task.status === 'completed' ? '[x]' : '[ ]';
-            let taskDate = task.start_time ? new Date(task.start_time).toLocaleDateString() : 'No date';
-            doc.text(`${statusIcon} [${taskDate}] ${task.description}`, 25, yPosition);
-            yPosition += 7;
+        const logoFontSize = 22;
+        const letterSpacing = -0.025 * logoFontSize;
+        const snap = 'Snap';
+        const task = 'Task';
+        function getTextWidthWithSpacing(doc, text, spacing) {
+            let width = 0;
+            for (let i = 0; i < text.length; i++) {
+                width += doc.getTextWidth(text[i]);
+                if (i < text.length - 1) width += spacing;
+            }
+            return width;
+        }
+        const snapWidth = getTextWidthWithSpacing(doc, snap, letterSpacing);
+        const taskWidth = getTextWidthWithSpacing(doc, task, letterSpacing);
+        const totalWidth = snapWidth + taskWidth;
+        const centerX = 105;
+        const startX = centerX - totalWidth / 2;
+        let logoX = startX;
+        doc.setTextColor(0, 0, 0);
+        for (let i = 0; i < snap.length; i++) {
+            doc.text(snap[i], logoX, 18, { baseline: 'top' });
+            logoX += doc.getTextWidth(snap[i]) + letterSpacing;
+        }
+        doc.setTextColor(139, 92, 246);
+        for (let i = 0; i < task.length; i++) {
+            doc.text(task[i], logoX, 18, { baseline: 'top' });
+            logoX += doc.getTextWidth(task[i]) + letterSpacing;
+        }
+        doc.setFont('helvetica', 'bolditalic');
+        doc.setFontSize(15);
+        doc.setTextColor(0, 0, 0);
+        doc.text("Your Today's Task Report", 105, 34, { align: 'center' });
+        doc.setTextColor(34, 34, 34);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(13);
+        doc.text(`Report generated for: ${userName}`, 14, 49);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Generated on: ${new Date().toLocaleString()}`, 14, 56);
+        doc.setDrawColor(139, 92, 246);
+        doc.setLineWidth(1);
+        doc.line(14, 61, 196, 61);
+        const tableColumn = [
+            { header: "Date", dataKey: "date" },
+            { header: "Description", dataKey: "description" },
+            { header: "Priority", dataKey: "priority" },
+            { header: "Status", dataKey: "status" }
+        ];
+        const tableRows = tasks.map(task => ({
+            date: task.start_time ? new Date(task.start_time).toLocaleDateString() : 'Unscheduled',
+            description: task.description,
+            priority: task.priority.charAt(0).toUpperCase() + task.priority.slice(1),
+            status: task.status.charAt(0).toUpperCase() + task.status.slice(1)
+        }));
+        doc.autoTable({
+            columns: tableColumn,
+            body: tableRows,
+            startY: 67,
+            styles: {
+                font: 'helvetica',
+                fontSize: 11,
+                cellPadding: 4,
+                valign: 'middle',
+                textColor: [34, 34, 34]
+            },
+            headStyles: {
+                fillColor: [139, 92, 246],
+                textColor: 255,
+                fontStyle: 'bold'
+            },
+            alternateRowStyles: { fillColor: [245, 245, 255] },
+            columnStyles: {
+                description: { cellWidth: 70 }
+            }
         });
-        doc.save(`${userName.replace(/\s/g, '_')}_SnapTask_Report.pdf`);
+        const pdfPageWidth = doc.internal.pageSize.getWidth();
+        const pdfPageHeight = doc.internal.pageSize.getHeight();
+        const sigImgWidth = 40;
+        const sigImgHeight = 20;
+        const sigX = pdfPageWidth - sigImgWidth - 14;
+        const sigY = pdfPageHeight - sigImgHeight - 20;
+        const img = new window.Image();
+        img.src = '../signature.png';
+        img.onload = function() {
+            doc.addImage(img, 'PNG', sigX, sigY, sigImgWidth, sigImgHeight);
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(11);
+            doc.setTextColor(80);
+            doc.text('Dhinesh E, CEO of SnapTask', pdfPageWidth - 14, pdfPageHeight - 8, { align: 'right' });
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(10);
+            doc.setTextColor(120);
+            doc.text("SnapTask — Productivity made simple", 105, doc.internal.pageSize.height - 2, { align: "center" });
+            doc.save(`${userName.replace(/\s/g, '_')}_SnapTask_Report.pdf`);
+        };
+        img.onerror = function() {
+            doc.setFont('helvetica', 'italic');
+            doc.setFontSize(10);
+            doc.setTextColor(120);
+            doc.text("SnapTask — Productivity made simple", 105, doc.internal.pageSize.height - 2, { align: "center" });
+            doc.save(`${userName.replace(/\s/g, '_')}_SnapTask_Report.pdf`);
+        };
     } catch(error) {
-        console.error("PDF Export failed:", error);
-        alert("Could not generate PDF report.");
+      console.error("PDF Export failed:", error);
+      alert("Could not generate PDF report.");
     } finally {
-        exportButton.disabled = false;
-        exportButton.innerHTML = originalContent;
+      exportButton.disabled = false;
+      exportButton.innerHTML = originalContent;
     }
 });
-    
+
 document.getElementById('btn-reset-tasks').addEventListener('click', async () => {
     if (!confirm("Are you sure you want to delete ALL of your tasks?")) return;
     const appToken = localStorage.getItem('snapTaskAppToken');
@@ -725,10 +919,11 @@ document.getElementById('btn-reset-tasks').addEventListener('click', async () =>
     resetButton.disabled = true;
     resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
     try {
-        const response = await fetch('http://localhost:8000/tasks/reset', { method: 'DELETE', headers: { 'Authorization': `Bearer ${appToken}` } });
+        const response = await fetch(`${API_BASE_URL}/tasks/reset`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${appToken}` } });
         if (!response.ok) throw new Error('Failed to reset tasks.');
         alert('All tasks have been successfully reset.');
         fetchDashboardData();
+        fetchAndDisplayTasks();
     } catch (error) {
         alert(error.message);
     } finally {
@@ -746,6 +941,15 @@ document.getElementById('profile-task-widget').addEventListener('click', () => {
     showSection(tasksSection, navTasks);
     fetchAndDisplayTasks();
 });
+
+window.onload = function () {
+    updateUserInfo();
+    fetchDashboardData();
+    gsap.set([homeContent], { autoAlpha: 1 });
+    gsap.set([profileSection, tasksSection], { autoAlpha: 0, display: 'none' });
+    gsap.from(".header", { autoAlpha: 0, y: -30, delay: 0.2, duration: 0.6 });
+    gsap.from(homeContent.children, { autoAlpha: 0, y: 25, stagger: 0.15, delay: 0.4, duration: 0.5 });
+};
 
 document.addEventListener('DOMContentLoaded', () => {
     const canvas = document.getElementById('dynamicNightSkyCanvas');
@@ -796,11 +1000,27 @@ document.addEventListener('DOMContentLoaded', () => {
     animate(0);
 });
 
-window.onload = function () {
-    updateUserInfo();
-    fetchDashboardData();
-    gsap.set([homeContent], { autoAlpha: 1 });
-    gsap.set([profileSection, tasksSection], { autoAlpha: 0, display: 'none' });
-    gsap.from(".header", { autoAlpha: 0, y: -30, delay: 0.2, duration: 0.6 });
-    gsap.from(homeContent.children, { autoAlpha: 0, y: 25, stagger: 0.15, delay: 0.4, duration: 0.5 });
-};
+function populateAiBreakdownModal(subtasks) {
+    const subtaskList = document.getElementById('ai-subtask-list');
+    subtaskList.innerHTML = '';
+    if (!subtasks || subtasks.length === 0) {
+        subtaskList.innerHTML = '<p class="empty-message">No sub-tasks found.</p>';
+        return;
+    }
+    subtasks.forEach((subtask) => {
+        const item = document.createElement('div');
+        item.className = 'subtask-item';
+        item.innerHTML = `<span>${subtask.description}</span>`;
+        subtaskList.appendChild(item);
+    });
+    document.getElementById('ai-breakdown-modal').classList.add('visible');
+}
+
+const aiBreakdownModalActions = document.querySelector('#ai-breakdown-modal .modal-actions');
+aiBreakdownModalActions.innerHTML = '';
+
+const aiBreakdownModal = document.getElementById('ai-breakdown-modal');
+const aiBreakdownCloseBtn = aiBreakdownModal.querySelector('.modal-close-btn');
+aiBreakdownCloseBtn.addEventListener('click', () => {
+    aiBreakdownModal.classList.remove('visible');
+});
