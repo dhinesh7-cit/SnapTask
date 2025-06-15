@@ -1,4 +1,3 @@
-# main.py
 import os
 import datetime
 import uuid
@@ -7,21 +6,14 @@ import io
 import webbrowser
 from typing import List, Optional, Dict, Any
 
-# --- FastAPI and Related Imports ---
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-
-# --- Pydantic for Data Modeling ---
 from pydantic import BaseModel, Field
-
-# --- Security (JWT) Imports ---
 from jose import JWTError, jwt
-
-# --- Environment and Google API Imports ---
 from dotenv import load_dotenv
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
@@ -30,71 +22,59 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 import google.generativeai as genai
 
-# --- Firebase Admin SDK Imports ---
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# --- File Parsing Library Imports ---
 import openpyxl
 import docx
 from pypdf import PdfReader
 
-# --- Push Notification & Scheduling Imports ---
 from pywebpush import webpush, WebPushException
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.cron import CronTrigger
 
-# --- Debugging and Logging ---
 import traceback
-
-# ===============================================================================
-# 1. INITIAL SETUP & CONFIGURATION
-# ===============================================================================
 
 load_dotenv()
 
-# --- VAPID Keys for Web Push ---
 VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
 VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
-VAPID_CLAIMS = {"sub": "mailto:your-email@example.com"} 
+VAPID_CLAIMS = {"sub": "mailto:your-email@example.com"}
 
-# --- Initialize Scheduler ---
 scheduler = AsyncIOScheduler()
 
-# --- Environment Variables & Constants ---
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 FIREBASE_SERVICE_ACCOUNT_KEY_PATH = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
 
-# --- Configure Gemini AI ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
     print("Warning: GEMINI_API_KEY not found. AI features will be disabled.")
 
-# --- Firebase Admin SDK Initialization ---
 if not FIREBASE_SERVICE_ACCOUNT_KEY_PATH or not os.path.exists(FIREBASE_SERVICE_ACCOUNT_KEY_PATH):
     raise ValueError("Firebase service account key path not found or invalid.")
 cred = credentials.Certificate(FIREBASE_SERVICE_ACCOUNT_KEY_PATH)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# --- FastAPI App Initialization ---
 app = FastAPI(title="SnapTask API with Firebase")
+
 
 @app.on_event("startup")
 def on_startup():
     scheduler.start()
-    # Schedule daily reset of daily routine tasks at midnight
     scheduler.add_job(reset_daily_routine_tasks, CronTrigger(hour=0, minute=0), id="reset_daily_routine_tasks", replace_existing=True)
     print("APScheduler started.")
+
 
 @app.on_event("shutdown")
 def on_shutdown():
     scheduler.shutdown()
+
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -102,6 +82,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
     response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
     return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,12 +94,11 @@ app.add_middleware(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google/callback")
 
-# ===============================================================================
-# 2. PYDANTIC SCHEMAS
-# ===============================================================================
+
 class PushSubscription(BaseModel):
     endpoint: str
     keys: Dict[str, str]
+
 
 class TaskBase(BaseModel):
     description: str
@@ -129,22 +109,27 @@ class TaskBase(BaseModel):
     is_daily_routine: bool = False
     updated_at: Optional[str] = None
 
+
 class TaskCreate(TaskBase):
     pass
+
 
 class TaskSchema(TaskBase):
     id: str
     status: str
     owner_email: str
 
+
 class Availability(BaseModel):
     date: str
     start_time: str
     end_time: str
 
+
 class ScheduleRequest(BaseModel):
     tasks: List[TaskCreate]
     availability: List[Availability]
+
 
 class ScheduledTask(BaseModel):
     task_description: str
@@ -153,32 +138,36 @@ class ScheduledTask(BaseModel):
     priority: str
     is_daily_routine: bool
 
+
 class AIScheduleResponse(BaseModel):
     schedule_id: str
     suggested_schedule: List[ScheduledTask]
     notes: str
 
+
 class CalendarSyncRequest(BaseModel):
     schedule: List[ScheduledTask]
 
+
 class OcrResponse(BaseModel):
     tasks: List[str]
+
 
 class Subtask(BaseModel):
     description: str
     duration_minutes: Optional[int] = None
 
+
 class BreakdownResponse(BaseModel):
     subtasks: List[Subtask]
 
-# ===============================================================================
-# 3. SECURITY & AUTHENTICATION
-# ===============================================================================
+
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None):
     to_encode = data.copy()
     expire = datetime.datetime.now(datetime.timezone.utc) + (expires_delta or datetime.timedelta(days=1))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+
 
 async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any]:
     credentials_exception = HTTPException(
@@ -193,22 +182,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    
+
     user_doc_ref = db.collection('users').document(email)
     user_doc = user_doc_ref.get()
     if not user_doc.exists:
         raise credentials_exception
-    
+
     user_data = user_doc.to_dict()
     user_data['email'] = email
     return user_data
 
-# ===============================================================================
-# 4. PUSH NOTIFICATION LOGIC
-# ===============================================================================
-# In SnapTask/main.py
 
-# REPLACE the existing send_push_notification function with this one
 def send_push_notification(subscription_info: dict, title: str, body: str, data: dict = None):
     try:
         payload = {"title": title, "body": body, "url": "/static/dashboard.html"}
@@ -223,14 +207,13 @@ def send_push_notification(subscription_info: dict, title: str, body: str, data:
         )
         print(f"Push notification sent successfully for: {title}")
     except WebPushException as ex:
-        # 410 Gone: The subscription is no longer valid and should be removed.
         if ex.response.status_code == 410:
              print("Subscription has expired or is no longer valid.")
-             # Here you would add logic to find and delete this subscription from Firestore.
         else:
             print(f"Web push failed: {ex}")
     except Exception as e:
         print(f"An error occurred in send_push_notification: {e}")
+
 
 def reset_daily_routine_tasks():
     try:
@@ -251,23 +234,21 @@ def reset_daily_routine_tasks():
     except Exception as e:
         print(f"Error resetting daily routine tasks: {e}")
 
-# ===============================================================================
-# 5. API ENDPOINTS
-# ===============================================================================
+
 @app.get("/vapid_public_key", tags=["Push Notifications"])
 def get_vapid_public_key(current_user: Dict[str, Any] = Depends(get_current_user)):
     return {"public_key": VAPID_PUBLIC_KEY}
+
 
 @app.post("/push/subscribe", status_code=201, tags=["Push Notifications"])
 async def subscribe_to_push(subscription: PushSubscription, current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
     subscription_dict = subscription.dict()
-    
     sub_collection_ref = db.collection('users').document(user_email).collection('push_subscriptions')
     endpoint_hash = str(uuid.uuid5(uuid.NAMESPACE_URL, subscription.endpoint))
     sub_collection_ref.document(endpoint_hash).set(subscription_dict)
-    
     return {"message": "Subscription saved successfully"}
+
 
 @app.post("/auth/google/callback", tags=["Authentication"])
 async def google_auth_callback(google_token: dict):
@@ -303,17 +284,16 @@ async def google_auth_callback(google_token: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
+
 @app.get("/tasks/", response_model=List[TaskSchema], tags=["Tasks"])
 async def read_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
-    
     today_str = datetime.date.today().isoformat()
     last_refresh_str = current_user.get('last_daily_refresh')
 
     if last_refresh_str != today_str:
         print(f"Running daily task refresh for {user_email}...")
         tasks_to_reset_query = db.collection('tasks').where('owner_email', '==', user_email).where('is_daily_routine', '==', True).where('status', '==', 'completed')
-        
         batch = db.batch()
         for task in tasks_to_reset_query.stream():
             batch.update(task.reference, {
@@ -321,7 +301,6 @@ async def read_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
                 'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
             })
         batch.commit()
-        
         db.collection('users').document(user_email).update({'last_daily_refresh': today_str})
         print("Daily task refresh complete.")
 
@@ -332,6 +311,7 @@ async def read_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
         task_data['id'] = task.id
         tasks_list.append(task_data)
     return tasks_list
+
 
 @app.patch("/tasks/{task_id}/complete", status_code=status.HTTP_200_OK, tags=["Tasks"])
 async def complete_task(task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -351,6 +331,7 @@ async def complete_task(task_id: str, current_user: Dict[str, Any] = Depends(get
     })
     return {"message": "Task marked as completed."}
 
+
 @app.delete("/tasks/{task_id}", status_code=status.HTTP_200_OK, tags=["Tasks"])
 async def delete_task(task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
@@ -365,6 +346,7 @@ async def delete_task(task_id: str, current_user: Dict[str, Any] = Depends(get_c
 
     task_ref.delete()
     return {"message": "Task deleted successfully."}
+
 
 @app.delete("/tasks/reset", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
 async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -383,6 +365,7 @@ async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
     
     return {"message": f"{doc_count} tasks have been reset."}
 
+
 @app.post("/tasks/{task_id}/breakdown", response_model=BreakdownResponse, tags=["AI Processing"])
 async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
@@ -398,13 +381,11 @@ async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = De
     estimated_duration = 120
     if start_time and end_time:
         try:
-            # Try to parse as ISO 8601 datetime strings
             start_dt = datetime.datetime.fromisoformat(start_time)
             end_dt = datetime.datetime.fromisoformat(end_time)
             estimated_duration = int((end_dt - start_dt).total_seconds() // 60)
         except Exception:
             try:
-                # Try to parse as integer minutes if stored as such
                 estimated_duration = int(end_time) - int(start_time)
             except Exception:
                 estimated_duration = 120
@@ -444,16 +425,13 @@ async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = De
         cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
         ai_data = json.loads(cleaned_response_text)
         subtasks = ai_data.get("subtasks", [])
-        # Adjust subtask timings to match the estimated_duration exactly
         total_ai_minutes = sum(sub.get("duration_minutes", 0) for sub in subtasks if isinstance(sub.get("duration_minutes"), int))
         if subtasks and total_ai_minutes != estimated_duration:
             import re
-            # Scale all subtasks proportionally, then fix rounding errors
             scaled = []
             running_total = 0
             for i, sub in enumerate(subtasks):
                 if i == len(subtasks) - 1:
-                    # Last subtask gets the remainder
                     new_minutes = estimated_duration - running_total
                 else:
                     ratio = sub.get("duration_minutes", 0) / total_ai_minutes if total_ai_minutes else 0
@@ -461,7 +439,6 @@ async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = De
                     running_total += new_minutes
                 sub["duration_minutes"] = new_minutes
                 sub["description"] = re.sub(r"\(\d+\s*min\)", f"({new_minutes} min)", sub["description"])
-            # Ensure all are int
             for sub in subtasks:
                 try:
                     sub["duration_minutes"] = int(sub["duration_minutes"])
@@ -471,6 +448,7 @@ async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = De
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to process task breakdown: {e}")
+
 
 @app.post("/process/ai/generate_schedule", response_model=AIScheduleResponse, tags=["AI Processing"])
 async def generate_ai_schedule(schedule_request: ScheduleRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -537,6 +515,7 @@ async def generate_ai_schedule(schedule_request: ScheduleRequest, current_user: 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate AI schedule: {e}")
 
+
 @app.post("/api/v1/calendar/sync", tags=["Google Calendar"])
 async def sync_to_calendar(sync_request: CalendarSyncRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
@@ -596,6 +575,7 @@ async def sync_to_calendar(sync_request: CalendarSyncRequest, current_user: Dict
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"An error occurred while saving tasks: {e}")
 
+
 @app.get("/api/v1/dashboard/summary", tags=["Dashboard"])
 async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
@@ -608,12 +588,14 @@ async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_curre
             completed_tasks += 1
     return {"totalTasks": total_tasks, "completedTasks": completed_tasks}
 
-# --- Static File Serving ---
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/", include_in_schema=False)
 async def read_root():
     return FileResponse('static/login.html')
+
 
 @app.get("/{page_name}.html", include_in_schema=False)
 async def read_page(page_name: str):
@@ -621,6 +603,7 @@ async def read_page(page_name: str):
     if os.path.exists(file_path):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="Page not found")
+
 
 @app.post("/process/file/extract_tasks", tags=["AI Processing"])
 async def extract_tasks_from_file(
@@ -678,7 +661,6 @@ async def extract_tasks_from_file(
             cleaned_response_text = extracted_text.strip().replace("```json", "").replace("```", "")
 
         ai_data = json.loads(cleaned_response_text)
-        # Ensure all tasks have required fields
         tasks = []
         for t in ai_data.get("tasks", []):
             if isinstance(t, dict):
