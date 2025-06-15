@@ -1,10 +1,13 @@
+# main.py
 import os
 import datetime
 import uuid
 import json
 import io
+import webbrowser
 from typing import List, Optional, Dict, Any
 
+# --- FastAPI and Related Imports ---
 import uvicorn
 from fastapi import FastAPI, Depends, HTTPException, status, Request, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,10 +15,13 @@ from fastapi.security import OAuth2PasswordBearer
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+# --- Pydantic for Data Modeling ---
 from pydantic import BaseModel, Field
 
+# --- Security (JWT) Imports ---
 from jose import JWTError, jwt
 
+# --- Environment and Google API Imports ---
 from dotenv import load_dotenv
 from google.oauth2 import id_token as google_id_token
 from google.auth.transport import requests as google_requests
@@ -24,39 +30,71 @@ from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 import google.generativeai as genai
 
+# --- Firebase Admin SDK Imports ---
 import firebase_admin
 from firebase_admin import credentials, firestore
 
+# --- File Parsing Library Imports ---
 import openpyxl
 import docx
 from pypdf import PdfReader
 
+# --- Push Notification & Scheduling Imports ---
+from pywebpush import webpush, WebPushException
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.cron import CronTrigger
+
+# --- Debugging and Logging ---
 import traceback
+
+# ===============================================================================
+# 1. INITIAL SETUP & CONFIGURATION
+# ===============================================================================
 
 load_dotenv()
 
+# --- VAPID Keys for Web Push ---
+VAPID_PRIVATE_KEY = os.getenv("VAPID_PRIVATE_KEY")
+VAPID_PUBLIC_KEY = os.getenv("VAPID_PUBLIC_KEY")
+VAPID_CLAIMS = {"sub": "mailto:your-email@example.com"} 
+
+# --- Initialize Scheduler ---
+scheduler = AsyncIOScheduler()
+
+# --- Environment Variables & Constants ---
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 FIREBASE_SERVICE_ACCOUNT_KEY_PATH = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
 
-CLIENT_SECRET_FILE = 'client_secret.json'
-SCOPES = ['https://www.googleapis.com/auth/calendar.events']
-REDIRECT_URI = "http://127.0.0.1:8000/auth/google/calendar/callback"
-
+# --- Configure Gemini AI ---
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 else:
     print("Warning: GEMINI_API_KEY not found. AI features will be disabled.")
 
+# --- Firebase Admin SDK Initialization ---
 if not FIREBASE_SERVICE_ACCOUNT_KEY_PATH or not os.path.exists(FIREBASE_SERVICE_ACCOUNT_KEY_PATH):
     raise ValueError("Firebase service account key path not found or invalid.")
 cred = credentials.Certificate(FIREBASE_SERVICE_ACCOUNT_KEY_PATH)
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
+# --- FastAPI App Initialization ---
 app = FastAPI(title="SnapTask API with Firebase")
+
+@app.on_event("startup")
+def on_startup():
+    scheduler.start()
+    # Schedule daily reset of daily routine tasks at midnight
+    scheduler.add_job(reset_daily_routine_tasks, CronTrigger(hour=0, minute=0), id="reset_daily_routine_tasks", replace_existing=True)
+    print("APScheduler started.")
+
+@app.on_event("shutdown")
+def on_shutdown():
+    scheduler.shutdown()
 
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
@@ -67,12 +105,7 @@ async def add_security_headers(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5500",
-        "http://127.0.0.1:5500",
-        "http://localhost:8000",
-        "http://127.0.0.1:8000"
-    ],
+    allow_origins=["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:8000", "http://127.0.0.1:8000"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -80,13 +113,21 @@ app.add_middleware(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/google/callback")
 
+# ===============================================================================
+# 2. PYDANTIC SCHEMAS
+# ===============================================================================
+class PushSubscription(BaseModel):
+    endpoint: str
+    keys: Dict[str, str]
+
 class TaskBase(BaseModel):
     description: str
     priority: str = "medium"
-    estimated_duration_minutes: int = 30
+    estimated_duration_minutes: Optional[int] = 30
     start_time: Optional[str] = None
     end_time: Optional[str] = None
     is_daily_routine: bool = False
+    updated_at: Optional[str] = None
 
 class TaskCreate(TaskBase):
     pass
@@ -123,6 +164,16 @@ class CalendarSyncRequest(BaseModel):
 class OcrResponse(BaseModel):
     tasks: List[str]
 
+class Subtask(BaseModel):
+    description: str
+    duration_minutes: Optional[int] = None
+
+class BreakdownResponse(BaseModel):
+    subtasks: List[Subtask]
+
+# ===============================================================================
+# 3. SECURITY & AUTHENTICATION
+# ===============================================================================
 def create_access_token(data: dict, expires_delta: Optional[datetime.timedelta] = None):
     to_encode = data.copy()
     expire = datetime.datetime.now(datetime.timezone.utc) + (expires_delta or datetime.timedelta(days=1))
@@ -152,6 +203,72 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> Dict[str, Any
     user_data['email'] = email
     return user_data
 
+# ===============================================================================
+# 4. PUSH NOTIFICATION LOGIC
+# ===============================================================================
+# In SnapTask/main.py
+
+# REPLACE the existing send_push_notification function with this one
+def send_push_notification(subscription_info: dict, title: str, body: str, data: dict = None):
+    try:
+        payload = {"title": title, "body": body, "url": "/static/dashboard.html"}
+        if data and "url" in data:
+            payload["url"] = data["url"]
+
+        webpush(
+            subscription_info=subscription_info,
+            data=json.dumps(payload),
+            vapid_private_key=VAPID_PRIVATE_KEY,
+            vapid_claims=VAPID_CLAIMS.copy()
+        )
+        print(f"Push notification sent successfully for: {title}")
+    except WebPushException as ex:
+        # 410 Gone: The subscription is no longer valid and should be removed.
+        if ex.response.status_code == 410:
+             print("Subscription has expired or is no longer valid.")
+             # Here you would add logic to find and delete this subscription from Firestore.
+        else:
+            print(f"Web push failed: {ex}")
+    except Exception as e:
+        print(f"An error occurred in send_push_notification: {e}")
+
+def reset_daily_routine_tasks():
+    try:
+        users = db.collection('users').stream()
+        for user in users:
+            user_email = user.id
+            tasks_to_reset_query = db.collection('tasks').where('owner_email', '==', user_email).where('is_daily_routine', '==', True)
+            batch = db.batch()
+            for task in tasks_to_reset_query.stream():
+                task_data = task.to_dict()
+                if task_data.get('is_daily_routine', False):
+                    batch.update(task.reference, {
+                        'status': 'pending',
+                        'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+                    })
+            batch.commit()
+        print("Daily routine tasks reset at midnight.")
+    except Exception as e:
+        print(f"Error resetting daily routine tasks: {e}")
+
+# ===============================================================================
+# 5. API ENDPOINTS
+# ===============================================================================
+@app.get("/vapid_public_key", tags=["Push Notifications"])
+def get_vapid_public_key(current_user: Dict[str, Any] = Depends(get_current_user)):
+    return {"public_key": VAPID_PUBLIC_KEY}
+
+@app.post("/push/subscribe", status_code=201, tags=["Push Notifications"])
+async def subscribe_to_push(subscription: PushSubscription, current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    subscription_dict = subscription.dict()
+    
+    sub_collection_ref = db.collection('users').document(user_email).collection('push_subscriptions')
+    endpoint_hash = str(uuid.uuid5(uuid.NAMESPACE_URL, subscription.endpoint))
+    sub_collection_ref.document(endpoint_hash).set(subscription_dict)
+    
+    return {"message": "Subscription saved successfully"}
+
 @app.post("/auth/google/callback", tags=["Authentication"])
 async def google_auth_callback(google_token: dict):
     try:
@@ -167,7 +284,8 @@ async def google_auth_callback(google_token: dict):
                 "name": idinfo.get('name', 'New User'),
                 "picture_url": idinfo.get('picture'),
                 "created_at": firestore.SERVER_TIMESTAMP,
-                "calendar_credentials": None
+                "calendar_credentials": None,
+                "last_daily_refresh": None
             }
             user_doc_ref.set(user_data)
         app_token = create_access_token(data={"email": email})
@@ -185,69 +303,28 @@ async def google_auth_callback(google_token: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
-@app.get("/auth/google/calendar/login", tags=["Google Calendar"])
-def calendar_auth_login(current_user: Dict[str, Any] = Depends(get_current_user)):
-    user_email = current_user['email']
-    if not os.path.exists(CLIENT_SECRET_FILE):
-        raise HTTPException(status_code=500, detail="Google Client Secret file not found on server.")
-    
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        state=user_email
-    )
-    return {"authorization_url": authorization_url}
-
-@app.get("/auth/google/calendar/callback", tags=["Google Calendar"], response_class=HTMLResponse)
-async def calendar_auth_callback(request: Request, code: str = Query(...), state: str = Query(...)):
-    user_email = state
-    if not os.path.exists(CLIENT_SECRET_FILE):
-        raise HTTPException(status_code=500, detail="Google Client Secret file not found on server.")
-    
-    flow = Flow.from_client_secrets_file(
-        CLIENT_SECRET_FILE,
-        scopes=SCOPES,
-        redirect_uri=REDIRECT_URI
-    )
-    flow.fetch_token(code=code)
-    
-    creds = flow.credentials
-    creds_json = {
-        'token': creds.token,
-        'refresh_token': creds.refresh_token,
-        'token_uri': creds.token_uri,
-        'client_id': creds.client_id,
-        'client_secret': creds.client_secret,
-        'scopes': creds.scopes
-    }
-
-    user_doc_ref = db.collection('users').document(user_email)
-    user_doc_ref.update({"calendar_credentials": json.dumps(creds_json)})
-    
-    return """
-    <html><head><title>Authentication Successful</title></head><body><p>Authentication successful! You can close this window now.</p><script>window.close();</script></body></html>
-    """
-
-@app.get("/api/v1/dashboard/summary", tags=["Dashboard"])
-async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_current_user)):
-    user_email = current_user['email']
-    tasks_ref = db.collection('tasks').where('owner_email', '==', user_email).stream()
-    total_tasks = 0
-    completed_tasks = 0
-    for task in tasks_ref:
-        total_tasks += 1
-        if task.to_dict().get('status') == 'completed':
-            completed_tasks += 1
-    return {"totalTasks": total_tasks, "completedTasks": completed_tasks}
-
 @app.get("/tasks/", response_model=List[TaskSchema], tags=["Tasks"])
 async def read_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
     user_email = current_user['email']
+    
+    today_str = datetime.date.today().isoformat()
+    last_refresh_str = current_user.get('last_daily_refresh')
+
+    if last_refresh_str != today_str:
+        print(f"Running daily task refresh for {user_email}...")
+        tasks_to_reset_query = db.collection('tasks').where('owner_email', '==', user_email).where('is_daily_routine', '==', True).where('status', '==', 'completed')
+        
+        batch = db.batch()
+        for task in tasks_to_reset_query.stream():
+            batch.update(task.reference, {
+                'status': 'pending',
+                'updated_at': datetime.datetime.now(datetime.timezone.utc).isoformat()
+            })
+        batch.commit()
+        
+        db.collection('users').document(user_email).update({'last_daily_refresh': today_str})
+        print("Daily task refresh complete.")
+
     tasks_stream = db.collection('tasks').where('owner_email', '==', user_email).stream()
     tasks_list = []
     for task in tasks_stream:
@@ -268,7 +345,10 @@ async def complete_task(task_id: str, current_user: Dict[str, Any] = Depends(get
     if task_doc.to_dict().get('owner_email') != user_email:
         raise HTTPException(status_code=403, detail="Not authorized to modify this task")
 
-    task_ref.update({"status": "completed"})
+    task_ref.update({
+        "status": "completed",
+        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+    })
     return {"message": "Task marked as completed."}
 
 @app.delete("/tasks/{task_id}", status_code=status.HTTP_200_OK, tags=["Tasks"])
@@ -303,69 +383,94 @@ async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
     
     return {"message": f"{doc_count} tasks have been reset."}
 
-@app.post("/process/file/extract_tasks", tags=["AI Processing"])
-async def extract_tasks_from_file(
-    file: UploadFile = File(...),
-    current_user: Dict[str, Any] = Depends(get_current_user)
-):
+@app.post("/tasks/{task_id}/breakdown", response_model=BreakdownResponse, tags=["AI Processing"])
+async def breakdown_task_with_ai(task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    task_ref = db.collection('tasks').document(task_id)
+    task_doc = task_ref.get()
+
+    if not task_doc.exists or task_doc.to_dict().get('owner_email') != user_email:
+        raise HTTPException(status_code=404, detail="Task not found or not authorized")
+
+    task_description = task_doc.to_dict().get('description')
+    start_time = task_doc.to_dict().get('start_time')
+    end_time = task_doc.to_dict().get('end_time')
+    estimated_duration = 120
+    if start_time and end_time:
+        try:
+            # Try to parse as ISO 8601 datetime strings
+            start_dt = datetime.datetime.fromisoformat(start_time)
+            end_dt = datetime.datetime.fromisoformat(end_time)
+            estimated_duration = int((end_dt - start_dt).total_seconds() // 60)
+        except Exception:
+            try:
+                # Try to parse as integer minutes if stored as such
+                estimated_duration = int(end_time) - int(start_time)
+            except Exception:
+                estimated_duration = 120
+    else:
+        estimated_duration = task_doc.to_dict().get('estimated_duration_minutes', 120)
+        
+    if not task_description:
+        raise HTTPException(status_code=400, detail="Task has no description to break down.")
+        
     if not GEMINI_API_KEY or not genai:
         raise HTTPException(status_code=503, detail="AI Service is not configured or available.")
 
-    content_type = file.content_type
-    file_content = await file.read()
-    extracted_text = ""
-
     try:
-        if "image" in content_type:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            image_parts = [{"mime_type": content_type, "data": file_content}]
-            prompt = "Analyze the image and extract all distinct tasks or to-do list items. Return a JSON object with a 'tasks' key containing an array of strings."
-            response = await model.generate_content_async([prompt, *image_parts])
-            extracted_text = response.text
-
-        elif content_type == 'application/pdf':
-            reader = PdfReader(io.BytesIO(file_content))
-            for page in reader.pages:
-                extracted_text += page.extract_text() + "\n"
-        
-        elif content_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
-            doc = docx.Document(io.BytesIO(file_content))
-            for para in doc.paragraphs:
-                extracted_text += para.text + "\n"
-        
-        elif content_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
-            workbook = openpyxl.load_workbook(io.BytesIO(file_content))
-            sheet = workbook.active
-            for row in sheet.iter_rows(values_only=True):
-                extracted_text += " ".join([str(cell) for cell in row if cell is not None]) + "\n"
-        
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
-
-        if "image" not in content_type:
-            model = genai.GenerativeModel('gemini-1.5-flash')
-            prompt = f"""
-            Analyze the following text content extracted from a document.
-            Identify all distinct tasks or to-do list items from this text.
-            Return the result as a single, valid JSON object with one key: "tasks".
-            The value of "tasks" should be an array of strings, where each string is a separate task you identified.
-            If no tasks are found, return an empty array.
-            Here is the text:
-            ---
-            {extracted_text}
-            ---
-            """
-            response = await model.generate_content_async(prompt)
-            cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
-        else:
-             cleaned_response_text = extracted_text.strip().replace("```json", "").replace("```", "")
-
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f'''
+        You are a project manager expert. A user has a high-level task and needs help breaking it down into smaller, actionable steps.
+        The main task is: "{task_description}"
+        The total estimated time for this task is {estimated_duration} minutes.
+        Generate a list of 3 to 5 clear, concise sub-tasks that would help complete this main task.
+        For each sub-task, suggest a reasonable estimated duration in minutes (as an integer) so that the sum of all sub-task durations is close to the total estimated time.
+        In the description of each sub-task, append the timing in parentheses, e.g., "Set a budget and create a guest list (20 min)".
+        Return the result as a single, valid JSON object with one key: "subtasks".
+        The value of "subtasks" should be an array of objects, where each object has two keys: "description" (string, with timing in parentheses) and "duration_minutes" (integer).
+        Example:
+        If the main task is "Plan a birthday party" and the total estimated time is 120 minutes, your output should look like this:
+        {{
+            "subtasks": [
+                {{"description": "Set a budget and create a guest list (20 min)", "duration_minutes": 20}},
+                {{"description": "Choose a date, time, and venue (25 min)", "duration_minutes": 25}},
+                {{"description": "Send out invitations and track RSVPs (25 min)", "duration_minutes": 25}},
+                {{"description": "Plan the menu and order a cake (25 min)", "duration_minutes": 25}},
+                {{"description": "Organize decorations and entertainment (25 min)", "duration_minutes": 25}}
+            ]
+        }}
+        '''
+        response = await model.generate_content_async(prompt)
+        cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
         ai_data = json.loads(cleaned_response_text)
-        return {"tasks": ai_data.get("tasks", [])}
-
+        subtasks = ai_data.get("subtasks", [])
+        # Adjust subtask timings to match the estimated_duration exactly
+        total_ai_minutes = sum(sub.get("duration_minutes", 0) for sub in subtasks if isinstance(sub.get("duration_minutes"), int))
+        if subtasks and total_ai_minutes != estimated_duration:
+            import re
+            # Scale all subtasks proportionally, then fix rounding errors
+            scaled = []
+            running_total = 0
+            for i, sub in enumerate(subtasks):
+                if i == len(subtasks) - 1:
+                    # Last subtask gets the remainder
+                    new_minutes = estimated_duration - running_total
+                else:
+                    ratio = sub.get("duration_minutes", 0) / total_ai_minutes if total_ai_minutes else 0
+                    new_minutes = max(1, round(ratio * estimated_duration))
+                    running_total += new_minutes
+                sub["duration_minutes"] = new_minutes
+                sub["description"] = re.sub(r"\(\d+\s*min\)", f"({new_minutes} min)", sub["description"])
+            # Ensure all are int
+            for sub in subtasks:
+                try:
+                    sub["duration_minutes"] = int(sub["duration_minutes"])
+                except Exception:
+                    sub["duration_minutes"] = None
+        return BreakdownResponse(subtasks=subtasks)
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process task breakdown: {e}")
 
 @app.post("/process/ai/generate_schedule", response_model=AIScheduleResponse, tags=["AI Processing"])
 async def generate_ai_schedule(schedule_request: ScheduleRequest, current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -383,10 +488,10 @@ async def generate_ai_schedule(schedule_request: ScheduleRequest, current_user: 
         2.  Schedule all tasks if possible.
         3.  Do not schedule tasks outside the given availability windows.
         4.  Combine the date from the availability slot with the time to create a full ISO 8601 timestamp for start and end times.
-        5. Ensure that the start time of a task is before its end time.
+        5.  Ensure that the start time of a task is before its end time.
         6.  The `is_daily_routine` flag from the input task must be preserved in the output for that task.
-        7. Make sure to give 10 minutes break after the each task time.
-        8. Schedule a new breakfast/lunch/dinner break for 30 minutes (even if it not added in the task list), after any task ends if it crosses these common meal times:
+        7.  Make sure to give 10 minutes break after the each task time.
+        8.  Schedule a new breakfast/lunch/dinner break for 30 minutes (even if it not added in the task list), after any task ends if it crosses these common meal times:
             - Breakfast: 7:00 AM – 9:00 AM
             - Lunch: 12:00 PM – 2:00 PM
             - Dinner: 7:00 PM – 9:00 PM
@@ -411,17 +516,19 @@ async def generate_ai_schedule(schedule_request: ScheduleRequest, current_user: 
         for item in ai_data.get("suggested_schedule", []):
             desc = item.get("task_description", "Untitled Task")
             if any(meal in desc.lower() for meal in ["breakfast", "lunch", "dinner"]):
-                priority = "high"
+                priority = item.get("priority") if isinstance(item.get("priority"), str) and item.get("priority") else "medium"
+                is_daily_routine = True
             else:
                 priority = item.get("priority") if isinstance(item.get("priority"), str) and item.get("priority") else "medium"
+                is_daily_routine = bool(item.get("is_daily_routine", False))
             sanitized_schedule.append({
                 "task_description": desc,
                 "start_time": item.get("start_time"),
                 "end_time": item.get("end_time"),
                 "priority": priority,
-                "is_daily_routine": bool(item.get("is_daily_routine", False))
+                "is_daily_routine": is_daily_routine
             })
-
+        
         return AIScheduleResponse(
             schedule_id=str(uuid.uuid4()),
             suggested_schedule=sanitized_schedule,
@@ -450,14 +557,58 @@ async def sync_to_calendar(sync_request: CalendarSyncRequest, current_user: Dict
                 "owner_email": user_email,
                 "created_at": firestore.SERVER_TIMESTAMP,
             })
-        
+            
+            if item.start_time:
+                try:
+                    start_time_dt = datetime.datetime.fromisoformat(item.start_time.replace("Z", "+00:00"))
+                    notification_time = start_time_dt - datetime.timedelta(minutes=10)
+                    now = datetime.datetime.now(datetime.timezone.utc)
+
+                    if notification_time > now:
+                        subs_ref = db.collection('users').document(user_email).collection('push_subscriptions').stream()
+                        subscriptions = [sub.to_dict() for sub in subs_ref]
+                        
+                        for sub_info in subscriptions:
+                            job_id = f"push_{user_email}_{task_doc_ref.id}_{sub_info['keys']['p256dh']}"
+                            scheduler.add_job(
+                                send_push_notification,
+                                trigger=DateTrigger(run_date=notification_time),
+                                args=[
+                                    sub_info,
+                                    f"Task starting: {item.task_description}",
+                                    "This task is scheduled to begin in 10 minutes. Get ready!",
+                                    # Add the URL to open on click
+                                    {"url": "/static/dashboard.html"}
+                                ],
+                                id=job_id,
+                                replace_existing=True
+                            )
+                            print(f"Scheduled notification for job {job_id} at {notification_time}")
+
+                except Exception as e:
+                    print(f"Error scheduling notification for task '{item.task_description}': {e}")
+
+
         batch_tasks.commit()
-        return {"message": "Schedule successfully saved to the database."}
+        return {"message": "Schedule successfully saved and notifications scheduled."}
 
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"An error occurred while saving tasks: {e}")
 
+@app.get("/api/v1/dashboard/summary", tags=["Dashboard"])
+async def get_dashboard_summary(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    tasks_ref = db.collection('tasks').where('owner_email', '==', user_email).stream()
+    total_tasks = 0
+    completed_tasks = 0
+    for task in tasks_ref:
+        total_tasks += 1
+        if task.to_dict().get('status') == 'completed':
+            completed_tasks += 1
+    return {"totalTasks": total_tasks, "completedTasks": completed_tasks}
+
+# --- Static File Serving ---
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", include_in_schema=False)
@@ -471,5 +622,84 @@ async def read_page(page_name: str):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="Page not found")
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+@app.post("/process/file/extract_tasks", tags=["AI Processing"])
+async def extract_tasks_from_file(
+    file: UploadFile = File(...),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    if not GEMINI_API_KEY or not genai:
+        raise HTTPException(status_code=503, detail="AI Service is not configured or available.")
+
+    content_type = file.content_type
+    file_content = await file.read()
+    extracted_text = ""
+
+    try:
+        if "image" in content_type:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            image_parts = [{"mime_type": content_type, "data": file_content}]
+            prompt = (
+                "Analyze the image and extract all distinct tasks or to-do list items. "
+                "For each task, if a priority (high/medium/low) or estimated duration (in minutes) is mentioned, extract those as well. "
+                "Return a JSON object with a 'tasks' key containing an array of objects, each with 'description', 'priority', and 'estimated_duration_minutes' if available."
+            )
+            response = await model.generate_content_async([prompt, *image_parts])
+            extracted_text = response.text
+        elif content_type == 'application/pdf':
+            reader = PdfReader(io.BytesIO(file_content))
+            for page in reader.pages:
+                extracted_text += page.extract_text() + "\n"
+        elif content_type == 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+            doc = docx.Document(io.BytesIO(file_content))
+            for para in doc.paragraphs:
+                extracted_text += para.text + "\n"
+        elif content_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+            workbook = openpyxl.load_workbook(io.BytesIO(file_content))
+            sheet = workbook.active
+            for row in sheet.iter_rows(values_only=True):
+                extracted_text += " ".join([str(cell) for cell in row if cell is not None]) + "\n"
+        else:
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
+
+        if "image" not in content_type:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            prompt = f"""
+            Analyze the following text content extracted from a document.\n
+            Identify all distinct tasks or to-do list items from this text.\n
+            For each task, if a priority (high/medium/low) or estimated duration (in minutes) is mentioned, extract those as well.\n
+            Return the result as a single, valid JSON object with one key: 'tasks'.\n
+            The value of 'tasks' should be an array of objects, each with:\n
+            - 'description': the task description (string)\n            - 'priority': the priority if found (string: high, medium, or low; default to medium if not found)\n            - 'estimated_duration_minutes': integer if found, else 30\n
+            If no tasks are found, return an empty array.\n
+            Here is the text:\n---\n{extracted_text}\n---\n"""
+            response = await model.generate_content_async(prompt)
+            cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "")
+        else:
+            cleaned_response_text = extracted_text.strip().replace("```json", "").replace("```", "")
+
+        ai_data = json.loads(cleaned_response_text)
+        # Ensure all tasks have required fields
+        tasks = []
+        for t in ai_data.get("tasks", []):
+            if isinstance(t, dict):
+                desc = t.get("description") or t.get("task") or "Untitled Task"
+                priority = t.get("priority", "medium")
+                try:
+                    duration = int(t.get("estimated_duration_minutes", 30))
+                except Exception:
+                    duration = 30
+                tasks.append({
+                    "description": desc,
+                    "priority": priority,
+                    "estimated_duration_minutes": duration
+                })
+            elif isinstance(t, str):
+                tasks.append({
+                    "description": t,
+                    "priority": "medium",
+                    "estimated_duration_minutes": 30
+                })
+        return {"tasks": tasks}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
