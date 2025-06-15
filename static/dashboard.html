@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SnapTask - Home</title>
+    <link rel="icon" type="image/x-icon" href="./favicon.ico">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -11,6 +12,7 @@
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.5.23/dist/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
     <canvas id="dynamicNightSkyCanvas"></canvas>
@@ -194,12 +196,24 @@
                 <h2>Suggested Schedule</h2>
                 <p>Here is an optimized schedule. You can approve and save it to your task list.</p>
                 <div id="ai-schedule-list" class="task-list-container">
-                    </div>
+                </div>
                 <div id="ai-schedule-notes" class="ai-notes-container"></div>
                 <div class="modal-actions">
                     <button class="btn btn-secondary btn-back-edit">Edit Tasks</button>
                     <button id="btn-approve-schedule" class="btn btn-primary"><i class="fas fa-check"></i> Approve & Save</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="ai-breakdown-modal" class="modal-overlay">
+        <div class="modal-content">
+            <button class="modal-close-btn">&times;</button>
+            <h2> AI Task Breakdown</h2>
+            <p>Here are some AI suggested sub-tasks for your main task:</p>
+            <div id="ai-subtask-list" class="task-list-container">
+            </div>
+            <div class="modal-actions">
             </div>
         </div>
     </div>
