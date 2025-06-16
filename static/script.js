@@ -913,24 +913,42 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
 
 document.getElementById('btn-reset-tasks').addEventListener('click', async () => {
     if (!confirm("Are you sure you want to delete ALL of your tasks?")) return;
+    
     const appToken = localStorage.getItem('snapTaskAppToken');
-    if (!appToken) { alert("Authentication error."); return; }
+    if (!appToken) {
+        alert("Authentication error.");
+        return;
+    }
+
     const resetButton = document.getElementById('btn-reset-tasks');
     resetButton.disabled = true;
-    resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...';
+    resetButton.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Resetting...`;
+
     try {
-        const response = await fetch(`${API_BASE_URL}/tasks/reset`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${appToken}` } });
-        if (!response.ok) throw new Error('Failed to reset tasks.');
-        alert('All tasks have been successfully reset.');
-        fetchDashboardData();
-        fetchAndDisplayTasks();
-    } catch (error) {
-        alert(error.message);
+        const response = await fetch('http://localhost:8000/tasks/reset', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${appToken}`
+            }
+        });
+
+        if (response.status === 204) {
+            alert("All tasks have been reset.");
+            fetchDashboardData();
+            fetchAndDisplayTasks();
+        } else {
+            const error = await response.text();
+            alert(`Reset failed: ${error}`);
+        }
+    } catch (err) {
+        alert("An error occurred while resetting tasks.");
+        console.error(err);
     } finally {
         resetButton.disabled = false;
-        resetButton.innerHTML = '<i class="fas fa-trash-restore"></i> Reset Task';
+        resetButton.innerHTML = `<i class="fas fa-trash-restore"></i> Reset Task`;
     }
 });
+
 
 document.getElementById('home-task-widget').addEventListener('click', () => {
     showSection(tasksSection, navTasks);
