@@ -593,7 +593,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/", include_in_schema=False)
 async def read_root():
-    return FileResponse('/static/index.html')
+    return FileResponse('/index.html')
 
 
 @app.get("/{page_name}.html", include_in_schema=False)
