@@ -21,7 +21,8 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 import google.generativeai as genai
-
+import requests
+from fastapi import FastAPI, Response
 import firebase_admin
 from firebase_admin import credentials, firestore
 
@@ -602,6 +603,10 @@ async def read_page(page_name: str):
     if os.path.exists(file_path):
         return FileResponse(file_path)
     raise HTTPException(status_code=404, detail="Page not found")
+@app.get("/proxy-image")
+def proxy_image(url: str):
+    r = requests.get(url)
+    return Response(content=r.content, media_type="image/jpeg")
 
 
 @app.post("/process/file/extract_tasks", tags=["AI Processing"])
