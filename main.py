@@ -332,6 +332,23 @@ async def complete_task(task_id: str, current_user: Dict[str, Any] = Depends(get
     })
     return {"message": "Task marked as completed."}
 
+@app.delete("/tasks/reset", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
+async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
+    user_email = current_user['email']
+    tasks_query = db.collection('tasks').where('owner_email', '==', user_email)
+    tasks_docs = tasks_query.stream()
+
+    batch = db.batch()
+    doc_count = 0
+    for doc in tasks_docs:
+        batch.delete(doc.reference)
+        doc_count += 1
+    
+    if doc_count > 0:
+        batch.commit()
+    
+    return {"message": f"{doc_count} tasks have been reset."}
+
 
 @app.delete("/tasks/{task_id}", status_code=status.HTTP_200_OK, tags=["Tasks"])
 async def delete_task(task_id: str, current_user: Dict[str, Any] = Depends(get_current_user)):
@@ -349,22 +366,7 @@ async def delete_task(task_id: str, current_user: Dict[str, Any] = Depends(get_c
     return {"message": "Task deleted successfully."}
 
 
-@app.delete("/tasks/reset", status_code=status.HTTP_204_NO_CONTENT, tags=["Tasks"])
-async def reset_tasks(current_user: Dict[str, Any] = Depends(get_current_user)):
-    user_email = current_user['email']
-    tasks_query = db.collection('tasks').where('owner_email', '==', user_email)
-    tasks_docs = tasks_query.stream()
 
-    batch = db.batch()
-    doc_count = 0
-    for doc in tasks_docs:
-        batch.delete(doc.reference)
-        doc_count += 1
-    
-    if doc_count > 0:
-        batch.commit()
-    
-    return {"message": f"{doc_count} tasks have been reset."}
 
 
 @app.post("/tasks/{task_id}/breakdown", response_model=BreakdownResponse, tags=["AI Processing"])
