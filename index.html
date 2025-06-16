@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SnapTask — User Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <link rel="stylesheet" href="static/index/styles.css">
+</head>
+<body>
+    <video autoplay muted loop id="background-video">
+        <source src="static/assets/background.mp4" type="video/mp4">
+        Your browser does not support HTML5 video.
+    </video>
+
+    <div class="page-container">
+        
+        <div class="headings-container">
+            <h1 class="main-heading">Sign in to Snap<span class="logo-task-highlight">Task</span></h1>
+            <p class="sub-heading">From Snap to Task Instantly.</p>
+        </div>
+
+        <div class="google-button-wrapper">
+            <div id="g_id_onload"
+                 data-client_id="841495048619-go9dnmrsdqbpcom366a408k9pngrkdbu.apps.googleusercontent.com"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false"
+                 data-use_fedcm_for_prompt="true">
+            </div>
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-shape="pill"
+                 data-theme="outline" 
+                 data-text="signin_with" 
+                 data-size="large" 
+                 data-logo_alignment="left"
+                 data-width="280"> 
+            </div>
+        </div>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="static/index/script.js"></script>
+</body>
+</html>
