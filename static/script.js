@@ -1024,3 +1024,27 @@ const aiBreakdownCloseBtn = aiBreakdownModal.querySelector('.modal-close-btn');
 aiBreakdownCloseBtn.addEventListener('click', () => {
     aiBreakdownModal.classList.remove('visible');
 });
+document.addEventListener("DOMContentLoaded", () => {
+    const userInfo = JSON.parse(localStorage.getItem("snapTaskUserInfo"));
+
+    if (userInfo) {
+        const profileImg = document.getElementById("profile-picture");
+        const userName = document.getElementById("profile-user-name");
+
+        if (userInfo.picture) {
+            profileImg.src = userInfo.picture;
+
+            // Optional fallback if Google image fails
+            profileImg.onerror = () => {
+                profileImg.src = "/static/assets/default-profile.png";
+            };
+        }
+
+        if (userInfo.name) {
+            userName.textContent = userInfo.name;
+        }
+    } else {
+        console.warn("No user info found in localStorage.");
+    }
+});
+
