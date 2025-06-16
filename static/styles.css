@@ -1,4 +1,5 @@
 :root {
+    /* Original SnapTask Variables */
     --primary-color: #8B5CF6;
     --primary-hover-color: #7C3AED;
     --secondary-bg-color: #333333;
@@ -11,10 +12,6 @@
     --green-accent: #10B981;
     --red-accent: #EF4444;
     --gray-accent: #757575;
-    --canvas-night-sky-gradient-start: #000000;
-    --canvas-night-sky-gradient-mid: #000000;
-    --canvas-night-sky-gradient-end: #000000;
-    --canvas-star-color: rgba(255, 255, 224, 0.9);
 }
 
 html, body {
@@ -300,6 +297,12 @@ body {
     white-space: nowrap;
 }
 
+.actions-cell {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
 .actions-cell button {
     position: relative;
 }
@@ -355,6 +358,27 @@ body {
     cursor: not-allowed;
 }
 
+.btn-task-breakdown {
+    background: none;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    line-height: 1;
+}
+.btn-task-breakdown:hover:not(:disabled) {
+    background-color: rgba(139, 92, 246, 0.1);
+    transform: scale(1.1);
+}
+.btn-task-breakdown:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* --- Add Task Modal --- */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -383,8 +407,8 @@ body {
     padding: 30px 40px;
     border-radius: 16px;
     border: 1px solid var(--border-dark);
-    width: 95%;
-    max-width: 700px;
+    width: 98%;
+    max-width: 900px;
     position: relative;
     box-shadow: 0 10px 35px rgba(0,0,0,0.5);
     transform: scale(0.95);
@@ -474,6 +498,7 @@ body {
     opacity: 0.6;
 }
 
+/* --- File Upload View --- */
 .upload-area {
     border: 2px dashed var(--border-dark);
     border-radius: 10px;
@@ -558,6 +583,7 @@ body {
     border-radius: 8px;
 }
 
+/* --- OCR & Manual Task List Styles --- */
 .task-list-container {
     max-height: 250px;
     overflow-y: auto;
@@ -749,6 +775,32 @@ body {
 .ai-notes-container strong {
     color: var(--primary-color);
     font-style: normal;
+}
+
+/* --- AI Breakdown Modal Styles --- */
+#ai-breakdown-modal .task-list-container {
+    max-height: 40vh;
+}
+.subtask-item {
+    padding: 10px 5px;
+    border-bottom: 1px solid var(--border-dark);
+}
+.subtask-item:last-child {
+    border-bottom: none;
+}
+.subtask-item label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+}
+.subtask-checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary-color);
+}
+.subtask-description {
+    color: var(--text-primary-dark);
 }
 
 /* --- Notification Button Styles --- */
