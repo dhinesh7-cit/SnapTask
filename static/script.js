@@ -882,7 +882,7 @@ document.getElementById('btn-export-pdf').addEventListener('click', async () => 
         const sigX = pdfPageWidth - sigImgWidth - 14;
         const sigY = pdfPageHeight - sigImgHeight - 20;
         const img = new window.Image();
-        img.src = '../assets/signature.png';
+        img.src = 'static/assets/signature.png';
         img.onload = function() {
             doc.addImage(img, 'PNG', sigX, sigY, sigImgWidth, sigImgHeight);
             doc.setFont('helvetica', 'italic');
