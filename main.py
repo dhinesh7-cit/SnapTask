@@ -689,3 +689,7 @@ async def extract_tasks_from_file(
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+@app.head("/")
+def head_index():
+    return
+
