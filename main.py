@@ -81,7 +81,7 @@ def on_shutdown():
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
-    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    #response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
     return response
 
 
