@@ -86,7 +86,7 @@ async def add_security_headers(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=["http://localhost:5500", "http://127.0.0.1:5500", "http://localhost:8000", "http://127.0.0.1:8000", "https://snaptask-o7ae.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
